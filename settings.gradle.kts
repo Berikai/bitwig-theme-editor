@@ -1,2 +1,2 @@
-rootProject.name = "bitwig-theme"
+rootProject.name = "bitwig-theme-editor"
 
