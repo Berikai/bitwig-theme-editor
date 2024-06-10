@@ -3,35 +3,40 @@
 
 A theme editor for Bitwig Studio, written in java. Bitwig meets themes, finally!
 
-Should work with any versions in theory, but not tested enough yet.
+It should work with any version in theory, but it has not been tested extensively yet.
 
-> Please back up your bitwig.jar file before running the app, just in case.
+> Please back up your **bitwig.jar** file before running the app, just in case.
 
 ## Usage
 
-Run: `java -jar bitwig-theme-editor.jar <bitwig-jar-path> [command] <theme-path>`
+Run:
+```bash
+java -jar bitwig-theme-editor.jar <bitwig-jar-path> [command] <theme-path>
+```
 
-Available commands: export-window, export-arranger, update-window, update-arranger
+**Available commands**:
 
-```  
-    export-window      Exports current window theme into given file path. (overrides)  
-    export-arranger    Exports current arranger theme into given file path. (overrides)  
-    update-window      Updates window theme by editing bitwig.jar file due to given theme file.  
-    update-arranger    Updates arranger theme by editing bitwig.jar file due to given theme file.  
-```  
+- export-window: Exports the current window theme to the specified file path (overwrites existing file). 
+- export-arranger: Exports the current arranger theme to the specified file path (overwrites existing file). 
+- update-window: Updates the window theme by modifying the bitwig.jar file based on the specified theme file. 
+- update-arranger: Updates the arranger theme by modifying the bitwig.jar file based on the specified theme file.
 
-Example usage: `java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export-window current-bitwig-theme.json`
+**Example usage**:
+```bash
+java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export-window current-bitwig-theme.json
+```
 
 ### Brief Explanation
 
-First, run the app with `export-window` and `export-arranger` commands to create theme files due to your **bitwig.jar** file. These files are in JSON format. Then, edit the color values in theme files to your liking. After that, run the app with `update-window` and `update-arranger` commands. Voilà! You have themed your Bitwig!
+First, run the app using the `export-window` and `export-arranger` commands to create theme files based on your **bitwig.jar** file. These files will be in JSON format. Then, edit the color values in the theme files to your liking. After that, run the app with the `update-window` and `update-arranger` commands. Voilà! You have themed your Bitwig!
 
-- Using RGBA values for RGB values are not supported, since it may cause glitching in Bitwig UI.
+> Note: Using RGBA values instead of RGB values is not supported, as it may cause glitches in the Bitwig UI. However, you can use RGBA values where RGBA values are already in use.
 
 ## TODO
 
-- Tidy up the code since it is a mess
-- Create a basic Swing UI interface (Next step for this is visual themeing)
+- Tidy up the code; it is currently a mess.
+- Create a basic Swing UI 
+  - Next step for this is visual theming
 
 ## Contribution
 
