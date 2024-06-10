@@ -17,10 +17,10 @@ public class Main {
         String jarName = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()).getName();
 
         System.out.println("Usage:  java -jar " + jarName + " <bitwig-jar-path> [command] <theme-path>");
-        System.out.println("    export-window      Exports current window theme into given file path. (overrides)");
-        System.out.println("    export-arranger    Exports current arranger theme into given file path. (overrides)");
-        System.out.println("    update-window      Updates window theme by editing bitwig.jar file due to given theme file.");
-        System.out.println("    update-arranger    Updates arranger theme by editing bitwig.jar file due to given theme file.");
+        System.out.println("    export-window      Exports the current window theme to the specified file path (overwrites existing file).");
+        System.out.println("    export-arranger    Exports the current arranger theme to the specified file path (overwrites existing file).");
+        System.out.println("    update-window      Updates the window theme by modifying the bitwig.jar file based on the specified theme file.");
+        System.out.println("    update-arranger    Updates the arranger theme by modifying the bitwig.jar file based on the specified theme file.");
     }
 
     public static void main(String[] args) throws Exception {
