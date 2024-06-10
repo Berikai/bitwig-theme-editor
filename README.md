@@ -26,12 +26,10 @@ Example usage: `java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.
 
 First, run the app with `export-window` and `export-arranger` commands to create theme files due to your **bitwig.jar** file. These files are in JSON format. Then, edit the color values in theme files to your liking. After that, run the app with `update-window` and `update-arranger` commands. Voilà! You have themed your Bitwig!
 
-
-- Greyscale values can not be changed to any RGB values (e.g. #696969, has 3 repeating sections made of 69, so can only be changed to something like #7a7a7a, until it is implemented)
+- Using RGBA values for RGB values are not supported, since it may cause glitching in Bitwig UI.
 
 ## TODO
 
-- Add support for GREYSCALE to RGB conversion in bytecode manipulation step (in ThemeClass)
 - Tidy up the code since it is a mess
 - Create a basic Swing UI interface (Next step for this is visual themeing)
 
