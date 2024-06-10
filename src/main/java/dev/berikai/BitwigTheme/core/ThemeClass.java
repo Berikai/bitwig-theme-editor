@@ -161,8 +161,9 @@ public abstract class ThemeClass {
                 int[] rgb = theme.get(colorName).getRGB();
 
                 for (int j = 0; j < 3; j++) {
-                    insnList.insert(insnList.get(i + j + (j == 0 ? 1 : 0)), new IntInsnNode(Opcodes.SIPUSH, rgb[j]));
-                    if (j == 0) insnList.remove(insnList.get(i + j + 1));
+                    boolean isFirstInsnLine = (j == 0);
+                    insnList.insert(insnList.get(i + j + (isFirstInsnLine ? 1 : 0)), new IntInsnNode(Opcodes.SIPUSH, rgb[j]));
+                    if (isFirstInsnLine) insnList.remove(insnList.get(i + j + 1));
                 }
 
                 MethodInsnNode invokeVirtual = (MethodInsnNode) insnList.get(i + 4);
