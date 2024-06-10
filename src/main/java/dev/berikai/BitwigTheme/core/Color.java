@@ -26,7 +26,7 @@ public class Color {
             this.red = Integer.valueOf(hexCode.substring(0, 2), 16);
             this.green = Integer.valueOf(hexCode.substring(0, 2), 16);
             this.blue = Integer.valueOf(hexCode.substring(0, 2), 16);
-            this.alpha = -1;
+            this.alpha = 255;
             return;
         }
 
@@ -35,7 +35,7 @@ public class Color {
             this.red = Integer.valueOf(hexCode.substring(0, 2), 16);
             this.green = Integer.valueOf(hexCode.substring(2, 4), 16);
             this.blue = Integer.valueOf(hexCode.substring(4, 6), 16);
-            this.alpha = -1;
+            this.alpha = 255;
             return;
         }
 
@@ -62,7 +62,7 @@ public class Color {
         this.red = grey;
         this.green = grey;
         this.blue = grey;
-        this.alpha = -1;
+        this.alpha = 255;
     }
 
     public Color(int red, int green, int blue) {
@@ -72,7 +72,7 @@ public class Color {
         this.red = red;
         this.green = green;
         this.blue = blue;
-        this.alpha = -1;
+        this.alpha = 255;
     }
 
     public Color(int red, int green, int blue, int alpha) {
