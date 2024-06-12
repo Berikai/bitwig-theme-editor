@@ -7,6 +7,12 @@ It should work with any version in theory, but it has not been tested extensivel
 
 > Please back up your **bitwig.jar** file before running the app, just in case.
 
+## Download
+
+[![GitHub release](https://img.shields.io/github/release/Berikai/bitwig-theme-editor.svg)](https://github.com/Berikai/bitwig-theme-editor/releases/latest)
+
+Head to the [Releases page](https://github.com/Berikai/bitwig-theme-editor/releases) to download the latest version.
+
 ## Usage
 
 Run:
@@ -31,6 +37,15 @@ java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export-windo
 First, run the app using the `export-window` and `export-arranger` commands to create theme files based on your **bitwig.jar** file. These files will be in JSON format. Then, edit the color values in the theme files to your liking. After that, run the app with the `update-window` and `update-arranger` commands. Voilà! You have themed your Bitwig!
 
 > Note: Using RGBA values instead of RGB values is not supported, as it may cause glitches in the Bitwig UI. However, you can use RGBA values where RGBA values are already in use.
+
+## Development
+
+This project is built using the following tools.
+
+- IntelliJ IDEA Community Edition
+- Java 17 JDK
+
+Open the project with a Java IDE of your choice; IntelliJ IDEA is recommended. You can build the project with the `jar` task via Gradle.
 
 ## TODO
 
