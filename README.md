@@ -66,3 +66,11 @@ Example themes can be found in [Themes](themes) folder
 #### Medium Blue
 
 ![Medium Blue Theme](themes/medium_blue.png)
+
+#### Dark Red
+
+![Dark Red Theme](themes/dark_red.png)
+
+#### Ultra Light
+
+![Ultra Light Theme](themes/ultra_light.png)
