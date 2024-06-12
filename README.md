@@ -15,7 +15,11 @@ Head to the [Releases page](https://github.com/Berikai/bitwig-theme-editor/relea
 
 ## Usage
 
-Run:
+You can run the app directly without parameters to use it with a simple UI.
+
+![Basic UI](https://github.com/Berikai/bitwig-theme-editor/assets/18515671/8c76c8c6-30b4-43cf-9043-17759e744d75)
+
+Alternatively, you can run:
 ```bash
 java -jar bitwig-theme-editor.jar <bitwig-jar-path> [command] <theme-path>
 ```
