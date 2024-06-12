@@ -3,13 +3,14 @@ plugins {
 }
 
 group = "dev.berikai.BitwigTheme"
-version = "1.1.0"
+version = "1.2.0"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    implementation("com.formdev:flatlaf:3.4.1")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("org.ow2.asm:asm:9.7")
     implementation("org.ow2.asm:asm-tree:9.7")
