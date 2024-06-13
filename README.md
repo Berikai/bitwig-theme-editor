@@ -78,3 +78,8 @@ Example themes can be found in [Themes](themes) folder
 #### Ultra Light
 
 ![Ultra Light Theme](themes/ultra_light.png)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
