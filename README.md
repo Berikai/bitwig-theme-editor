@@ -31,9 +31,9 @@ java -jar bitwig-theme-editor.jar <bitwig-jar-path> [command] <theme-path>
 
 **Example usage**:
 ```bash
-java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export-window current-bitwig-theme.yaml
+java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export current-bitwig-theme.yaml
 # or
-java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export-window current-bitwig-theme.json
+java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar apply current-bitwig-theme.json
 ```
 
 ### Brief Explanation
