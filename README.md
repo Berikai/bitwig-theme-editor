@@ -31,12 +31,16 @@ java -jar bitwig-theme-editor.jar <bitwig-jar-path> [command] <theme-path>
 
 **Example usage**:
 ```bash
+java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export-window current-bitwig-theme.yaml
+# or
 java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export-window current-bitwig-theme.json
 ```
 
 ### Brief Explanation
 
-First, run the app using the `export` command to create theme file based on your **bitwig.jar** file. This file will be in JSON format. Then, edit the color values in the theme file to your liking. After that, run the app with the `update` command. Voilà! You have themed your Bitwig!
+First, run the app using the `export` command to create theme file based on your **bitwig.jar** file. This file will be in JSON or YAML format depending on your choice. Then, edit the color values in the theme file to your liking. After that, run the app with the `update` command. 
+
+Voilà! You have themed your Bitwig!
 
 > Note: Using RGBA values instead of RGB values is not supported, as it may cause glitches in the Bitwig UI. However, you can use RGBA values where RGBA values are already in use.
 
@@ -48,12 +52,6 @@ This project is built using the following tools.
 - Java 17 JDK
 
 Open the project with a Java IDE of your choice; IntelliJ IDEA is recommended. You can build the project with the `jar` task via Gradle.
-
-## TODO
-
-- Tidy up the code; it is currently a mess.
-- Create a basic Swing UI 
-  - Next step for this is visual theming
 
 ## Contribution
 
