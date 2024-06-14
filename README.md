@@ -38,7 +38,7 @@ java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar apply curren
 
 ### Brief Explanation
 
-First, run the app using the `export` command to create theme file based on your **bitwig.jar** file. This file will be in JSON or YAML format depending on your choice. Then, edit the color values in the theme file to your liking. After that, run the app with the `update` command. 
+First, run the app using the `export` command to create theme file based on your **bitwig.jar** file. This file will be in JSON or YAML format depending on your choice. Then, edit the color values in the theme file to your liking. After that, run the app with the `apply` command. 
 
 Voilà! You have themed your Bitwig!
 
