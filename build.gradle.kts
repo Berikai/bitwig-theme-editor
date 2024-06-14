@@ -10,6 +10,7 @@ repositories {
 }
 
 dependencies {
+    implementation("org.yaml:snakeyaml:2.2")
     implementation("com.formdev:flatlaf:3.4.1")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("org.ow2.asm:asm:9.7")
