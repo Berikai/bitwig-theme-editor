@@ -1,6 +1,6 @@
 package dev.berikai.BitwigTheme.core;
 
-public class Color {
+public class BitwigColor {
 
     public static final int UNKNOWN = -1;
     public static final int GREYSCALE = 0;
@@ -16,7 +16,7 @@ public class Color {
 
     private final int type;
 
-    public Color(String hex) {
+    public BitwigColor(String hex) {
         this.hex = hex;
 
         String hexCode = hex.substring(1);
@@ -55,7 +55,7 @@ public class Color {
         this.alpha = 255;
     }
 
-    public Color(int grey) {
+    public BitwigColor(int grey) {
         this.hex = "#" + String.format("%02x", grey) + String.format("%02x", grey) + String.format("%02x", grey);
 
         this.type = GREYSCALE;
@@ -65,7 +65,7 @@ public class Color {
         this.alpha = 255;
     }
 
-    public Color(int red, int green, int blue) {
+    public BitwigColor(int red, int green, int blue) {
         this.hex = "#" + String.format("%02x", red) + String.format("%02x", green) + String.format("%02x", blue);
 
         this.type = RGB;
@@ -75,7 +75,7 @@ public class Color {
         this.alpha = 255;
     }
 
-    public Color(int red, int green, int blue, int alpha) {
+    public BitwigColor(int red, int green, int blue, int alpha) {
         this.hex = "#" + String.format("%02x", red) + String.format("%02x", green) + String.format("%02x", blue) + String.format("%02x", alpha);
 
         this.type = RGBA;

@@ -3,7 +3,7 @@ package dev.berikai.BitwigTheme;
 import com.formdev.flatlaf.FlatIntelliJLaf;
 import dev.berikai.BitwigTheme.UI.MainUI;
 import dev.berikai.BitwigTheme.asm.JarNode;
-import dev.berikai.BitwigTheme.core.Color;
+import dev.berikai.BitwigTheme.core.BitwigColor;
 import dev.berikai.BitwigTheme.core.ThemeClass;
 import dev.berikai.BitwigTheme.core.impl.ArrangerThemeClass;
 import dev.berikai.BitwigTheme.core.impl.WindowThemeClass;
@@ -67,7 +67,7 @@ public class Main {
         ThemeClass arrangerThemeClass = new ArrangerThemeClass(jar.getNodes());
 
         // Inner HashMap changed to TreeMap to order keys alphabetically.
-        HashMap<String, TreeMap<String, Color>> theme = new HashMap<>();
+        HashMap<String, TreeMap<String, BitwigColor>> theme = new HashMap<>();
 
         theme.put("window", new TreeMap<>(windowThemeClass.getTheme()));
         theme.put("arranger", new TreeMap<>(arrangerThemeClass.getTheme()));

@@ -55,10 +55,10 @@ public abstract class ThemeClass {
         return -1;
     }
 
-    public HashMap<String, Color> getTheme() {
+    public HashMap<String, BitwigColor> getTheme() {
         InsnList insnList = methodNode.instructions;
 
-        HashMap<String, Color> theme = new HashMap<>();
+        HashMap<String, BitwigColor> theme = new HashMap<>();
 
         // Iterate through each insnNode in target method that contains color information.
         for(int i = 0; i < insnList.size(); i++) {
@@ -79,24 +79,24 @@ public abstract class ThemeClass {
 
             // Check how many instructions in order are numbers to determine color type.
             if(isAsmNumber(insnList.get(i + 4))) {
-                colorType = Color.RGBA;
+                colorType = BitwigColor.RGBA;
             } else if(isAsmNumber(insnList.get(i + 3))) {
-                colorType = Color.RGB;
+                colorType = BitwigColor.RGB;
             } else if(isAsmNumber(insnList.get(i + 1))) {
-                colorType = Color.GREYSCALE;
+                colorType = BitwigColor.GREYSCALE;
             } else {
                 continue;
             }
 
-            if(colorType == Color.GREYSCALE) {
+            if(colorType == BitwigColor.GREYSCALE) {
                 theme.put(colorName,
-                        new Color(getAsmNumber(insnList.get(i + 1)))
+                        new BitwigColor(getAsmNumber(insnList.get(i + 1)))
                 );
             }
 
-            if(colorType == Color.RGB) {
+            if(colorType == BitwigColor.RGB) {
                 theme.put(colorName,
-                        new Color(
+                        new BitwigColor(
                                 getAsmNumber(insnList.get(i + 1)),
                                 getAsmNumber(insnList.get(i + 2)),
                                 getAsmNumber(insnList.get(i + 3))
@@ -104,9 +104,9 @@ public abstract class ThemeClass {
                 );
             }
 
-            if(colorType == Color.RGBA) {
+            if(colorType == BitwigColor.RGBA) {
                 theme.put(colorName,
-                        new Color(
+                        new BitwigColor(
                                 getAsmNumber(insnList.get(i + 1)),
                                 getAsmNumber(insnList.get(i + 2)),
                                 getAsmNumber(insnList.get(i + 3)),
@@ -120,7 +120,7 @@ public abstract class ThemeClass {
         return theme;
     }
 
-    public void setTheme(HashMap<String, Color> theme) {
+    public void setTheme(HashMap<String, BitwigColor> theme) {
         InsnList insnList = methodNode.instructions;
 
         // Iterate through each insnNode in target method that contains color information.
@@ -139,7 +139,7 @@ public abstract class ThemeClass {
 
             colorName = ((LdcInsnNode) insnList.get(i)).cst.toString();
 
-            Color testColor = new Color(404); // Max color value is 255 each, so 404 greyscale color doesn't exist.
+            BitwigColor testColor = new BitwigColor(404); // Max color value is 255 each, so 404 greyscale color doesn't exist.
             if(isAsmNumber(insnList.get(i + 4))) {
                 // We use this imaginary testColor to check if color key we found in the bytecode exists in the provided theme file, without error handling.
                 if (theme.getOrDefault(colorName, testColor) == testColor) continue;

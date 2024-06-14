@@ -3,7 +3,7 @@ package dev.berikai.BitwigTheme.extension;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import dev.berikai.BitwigTheme.core.Color;
+import dev.berikai.BitwigTheme.core.BitwigColor;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.TreeMap;
 
 public class ThemeFile {
-    public static HashMap<String, HashMap<String, Color>> readTheme(String path) throws IOException {
+    public static HashMap<String, HashMap<String, BitwigColor>> readTheme(String path) throws IOException {
         String content = Files.readString(Paths.get(path), StandardCharsets.UTF_8);
 
         HashMap<String, HashMap<String, String>> themePair = new HashMap<>();
@@ -37,17 +37,17 @@ public class ThemeFile {
             System.exit(1);
         }
 
-        HashMap<String, Color> windowTheme = new HashMap<>();
-        HashMap<String, Color> arrangerTheme = new HashMap<>();
+        HashMap<String, BitwigColor> windowTheme = new HashMap<>();
+        HashMap<String, BitwigColor> arrangerTheme = new HashMap<>();
 
-        HashMap<String, HashMap<String, Color>> theme = new HashMap<>();
+        HashMap<String, HashMap<String, BitwigColor>> theme = new HashMap<>();
 
         for (String key : themePair.get("window").keySet()) {
-            windowTheme.put(key, new Color(themePair.get("window").get(key)));
+            windowTheme.put(key, new BitwigColor(themePair.get("window").get(key)));
         }
 
         for (String key : themePair.get("arranger").keySet()) {
-            arrangerTheme.put(key, new Color(themePair.get("arranger").get(key)));
+            arrangerTheme.put(key, new BitwigColor(themePair.get("arranger").get(key)));
         }
 
         theme.put("window", windowTheme);
@@ -57,7 +57,7 @@ public class ThemeFile {
     }
 
     // Accepts TreeMap rather HashMap in the inner map to get a ordered pair.
-    public static void exportTheme(HashMap<String, TreeMap<String, Color>> theme, String path) throws IOException {
+    public static void exportTheme(HashMap<String, TreeMap<String, BitwigColor>> theme, String path) throws IOException {
         TreeMap<String, String> windowThemePair = new TreeMap<>();
         TreeMap<String, String> arrangerThemePair = new TreeMap<>();
 
