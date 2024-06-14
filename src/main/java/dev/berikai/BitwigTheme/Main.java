@@ -6,6 +6,7 @@ import dev.berikai.BitwigTheme.asm.JarNode;
 import dev.berikai.BitwigTheme.core.BitwigColor;
 import dev.berikai.BitwigTheme.core.ThemeClass;
 import dev.berikai.BitwigTheme.core.impl.ArrangerThemeClass;
+import dev.berikai.BitwigTheme.core.HashCheckClass;
 import dev.berikai.BitwigTheme.core.impl.WindowThemeClass;
 import dev.berikai.BitwigTheme.extension.ThemeFile;
 
@@ -85,6 +86,9 @@ public class Main {
 
             windowThemeClass.setTheme(ThemeFile.readTheme(path).get("window"));
             arrangerThemeClass.setTheme(ThemeFile.readTheme(path).get("arranger"));
+
+            HashCheckClass hashCheckClass = new HashCheckClass(jar.getNodes());
+            hashCheckClass.disableHashCheck();
 
             jar.export(bitwig_path);
             System.out.println("Theme successfully applied from: " + path);
