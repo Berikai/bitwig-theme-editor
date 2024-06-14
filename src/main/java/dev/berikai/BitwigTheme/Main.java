@@ -1,7 +1,7 @@
 package dev.berikai.BitwigTheme;
 
 import com.formdev.flatlaf.FlatIntelliJLaf;
-import dev.berikai.BitwigTheme.UI.Frame;
+import dev.berikai.BitwigTheme.UI.MainUI;
 import dev.berikai.BitwigTheme.asm.JarNode;
 import dev.berikai.BitwigTheme.core.Color;
 import dev.berikai.BitwigTheme.core.ThemeClass;
@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.HashMap;
+import java.util.TreeMap;
 
 public class Main {
     public static JarNode jar;
@@ -31,7 +32,7 @@ public class Main {
 
         if (args.length == 0) {
             UIManager.setLookAndFeel(new FlatIntelliJLaf());
-            new Frame();
+            new MainUI();
             return;
         }
 
@@ -65,9 +66,11 @@ public class Main {
         ThemeClass windowThemeClass = new WindowThemeClass(jar.getNodes());
         ThemeClass arrangerThemeClass = new ArrangerThemeClass(jar.getNodes());
 
-        HashMap<String, HashMap<String, Color>> theme = new HashMap<>();
-        theme.put("window", windowThemeClass.getTheme());
-        theme.put("arranger", arrangerThemeClass.getTheme());
+        // Inner HashMap changed to TreeMap to order keys alphabetically.
+        HashMap<String, TreeMap<String, Color>> theme = new HashMap<>();
+
+        theme.put("window", new TreeMap<>(windowThemeClass.getTheme()));
+        theme.put("arranger", new TreeMap<>(arrangerThemeClass.getTheme()));
 
         ThemeFile.exportTheme(theme, path);
         System.out.println("Theme successfully exported to: " + path);
