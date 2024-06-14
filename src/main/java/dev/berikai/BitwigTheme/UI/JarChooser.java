@@ -9,6 +9,7 @@ public class JarChooser extends JFileChooser {
         super(FileSystemView.getFileSystemView());
         FileNameExtensionFilter filter = new FileNameExtensionFilter("JAR File", "jar");
         setFileHidingEnabled(false);
+        setAcceptAllFileFilterUsed(false);
         setFileFilter(filter);
         setDialogTitle("Select bitwig.jar");
         int result = showOpenDialog(null);
