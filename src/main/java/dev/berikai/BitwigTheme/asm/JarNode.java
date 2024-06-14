@@ -53,7 +53,7 @@ public class JarNode {
             for (String className : modifiedNodes.keySet()) {
                 if (classNode.name.equals(className)) {
                     outputStream.putNextEntry(new ZipEntry(classNode.name + ".class"));
-                    ClassWriter writer = new CustomClassWriter(ClassWriter.COMPUTE_FRAMES);
+                    ClassWriter writer = new CustomClassWriter(ClassWriter.COMPUTE_MAXS);
                     classNode.accept(writer);
                     outputStream.write(writer.toByteArray());
                     outputStream.closeEntry();
