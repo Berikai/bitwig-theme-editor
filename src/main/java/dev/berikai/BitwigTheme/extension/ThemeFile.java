@@ -4,7 +4,10 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import dev.berikai.BitwigTheme.core.Color;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
 
+import javax.swing.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Type;
@@ -12,15 +15,27 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.TreeMap;
 
 public class ThemeFile {
     public static HashMap<String, HashMap<String, Color>> readTheme(String path) throws IOException {
         String content = Files.readString(Paths.get(path), StandardCharsets.UTF_8);
 
-        Gson gson = new Gson();
+        HashMap<String, HashMap<String, String>> themePair = new HashMap<>();
 
-        Type type = new TypeToken<HashMap<String, HashMap<String, String>>>() {}.getType();
-        HashMap<String, HashMap<String, String>> themePair = gson.fromJson(content, type);
+        if (path.toLowerCase().endsWith(".yaml")) {
+            Yaml yaml = new Yaml();
+            themePair = yaml.load(content);
+        } else if (path.toLowerCase().endsWith(".json")) {
+            Gson gson = new Gson();
+
+            Type type = new TypeToken<HashMap<String, HashMap<String, String>>>() {}.getType();
+            themePair = gson.fromJson(content, type);
+        } else {
+            System.out.println("Unknown extension! Please use a YAML or JSON file.");
+            JOptionPane.showMessageDialog(null, "Unknown extension! Please use a YAML or JSON file.", "ERROR!", JOptionPane.ERROR_MESSAGE);
+            System.exit(1);
+        }
 
         HashMap<String, Color> windowTheme = new HashMap<>();
         HashMap<String, Color> arrangerTheme = new HashMap<>();
@@ -41,11 +56,12 @@ public class ThemeFile {
         return theme;
     }
 
-    public static void exportTheme(HashMap<String, HashMap<String, Color>> theme, String path) throws IOException {
-        HashMap<String, String> windowThemePair = new HashMap<>();
-        HashMap<String, String> arrangerThemePair = new HashMap<>();
+    // Accepts TreeMap rather HashMap in the inner map to get a ordered pair.
+    public static void exportTheme(HashMap<String, TreeMap<String, Color>> theme, String path) throws IOException {
+        TreeMap<String, String> windowThemePair = new TreeMap<>();
+        TreeMap<String, String> arrangerThemePair = new TreeMap<>();
 
-        HashMap<String, HashMap<String, String>> themePair = new HashMap<>();
+        HashMap<String, TreeMap<String, String>> themePair = new HashMap<>();
 
         for (String key : theme.get("window").keySet()) {
             windowThemePair.put(key, theme.get("window").get(key).getHex());
@@ -58,13 +74,29 @@ public class ThemeFile {
         themePair.put("window", windowThemePair);
         themePair.put("arranger", arrangerThemePair);
 
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        if (path.toLowerCase().endsWith(".yaml")) {
+            DumperOptions options = new DumperOptions();
+            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            options.setPrettyFlow(true);
 
-        String content = gson.toJson(themePair);
+            Yaml yaml = new Yaml(options);
+            String yaml_content = yaml.dump(themePair);
 
-        PrintWriter out = new PrintWriter(path);
-        out.println(content);
-        out.close();
+            PrintWriter out = new PrintWriter(path);
+            out.println(yaml_content);
+            out.close();
+        } else if (path.toLowerCase().endsWith(".json")) {
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            String json_content = gson.toJson(themePair);
+
+            PrintWriter out = new PrintWriter(path);
+            out.println(json_content);
+            out.close();
+        } else {
+            System.out.println("Unknown extension! Please use a YAML or JSON file.");
+            JOptionPane.showMessageDialog(null, "Unknown extension! Please use a YAML or JSON file.", "ERROR!", JOptionPane.ERROR_MESSAGE);
+            System.exit(1);
+        }
 
     }
 }

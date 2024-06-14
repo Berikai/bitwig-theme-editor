@@ -4,11 +4,12 @@ import dev.berikai.BitwigTheme.Main;
 import dev.berikai.BitwigTheme.asm.JarNode;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.io.IOException;
 
-public class Frame extends JFrame {
-    public Frame() throws IOException {
+public class MainUI extends JFrame {
+    public MainUI() throws IOException {
         setTitle("Select Operation");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(250, 75);
@@ -38,8 +39,15 @@ public class Frame extends JFrame {
         export.addActionListener(e -> {
             ThemeChooser themeChooser = new ThemeChooser("Save");
             try {
-                Main.exportCurrentTheme(themeChooser.getSelectedFile().getPath(), jar);
-                JOptionPane.showMessageDialog(null, "Theme successfully exported to: " + themeChooser.getSelectedFile().getPath(), "Successful!", JOptionPane.INFORMATION_MESSAGE);
+                String path = "";
+                try {
+                    path = themeChooser.getSelectedFile().getPath() + (themeChooser.getSelectedFile().getPath().contains(".") ? "" : "." + ((FileNameExtensionFilter) themeChooser.getFileFilter()).getExtensions()[0].toLowerCase());
+                } catch (Exception ignored) {
+                    JOptionPane.showMessageDialog(null, "Please use YAML or JSON file format while exporting current theme!", "ERROR!", JOptionPane.ERROR_MESSAGE);
+                    System.exit(1);
+                }
+                Main.exportCurrentTheme(path, jar);
+                JOptionPane.showMessageDialog(null, "Theme successfully exported to: " + path, "Successful!", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }

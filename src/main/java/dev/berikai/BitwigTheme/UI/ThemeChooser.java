@@ -8,9 +8,12 @@ import java.util.Objects;
 public class ThemeChooser extends JFileChooser {
     public ThemeChooser(String dialog_mode) {
         super(FileSystemView.getFileSystemView());
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON File", "json");
+        FileNameExtensionFilter json_filter = new FileNameExtensionFilter("JSON Files (*.json)", "json");
+        FileNameExtensionFilter yaml_filter = new FileNameExtensionFilter("YAML Files (*.yaml)", "yaml");
         setFileHidingEnabled(false);
-        setFileFilter(filter);
+        setAcceptAllFileFilterUsed(false);
+        addChoosableFileFilter(json_filter);
+        addChoosableFileFilter(yaml_filter);
         setDialogTitle(Objects.equals(dialog_mode, "Open") ? "Select theme file" : "Export theme file");
         int result = Objects.equals(dialog_mode, "Open") ? showOpenDialog(null) : showSaveDialog(null);
 
