@@ -36,12 +36,9 @@ public abstract class ThemeClass {
 
     private boolean isAsmNumber(AbstractInsnNode insnNode) {
         return insnNode.getOpcode() == Opcodes.SIPUSH || insnNode.getOpcode() == Opcodes.BIPUSH
-
                 || insnNode.getOpcode() == Opcodes.ICONST_0 || insnNode.getOpcode() == Opcodes.ICONST_1
                 || insnNode.getOpcode() == Opcodes.ICONST_2 || insnNode.getOpcode() == Opcodes.ICONST_3
-                || insnNode.getOpcode() == Opcodes.ICONST_4 || insnNode.getOpcode() == Opcodes.ICONST_5
-
-                ;
+                || insnNode.getOpcode() == Opcodes.ICONST_4 || insnNode.getOpcode() == Opcodes.ICONST_5;
     }
 
     private int getAsmNumber(AbstractInsnNode insnNode) {
@@ -54,6 +51,7 @@ public abstract class ThemeClass {
         if (insnNode.getOpcode() == Opcodes.ICONST_3) return 3;
         if (insnNode.getOpcode() == Opcodes.ICONST_4) return 4;
         if (insnNode.getOpcode() == Opcodes.ICONST_5) return 5;
+
         return -1;
     }
 
@@ -62,20 +60,24 @@ public abstract class ThemeClass {
 
         HashMap<String, Color> theme = new HashMap<>();
 
+        // Iterate through each insnNode in target method that contains color information.
         for(int i = 0; i < insnList.size(); i++) {
             int colorType;
             String colorName;
 
+            // Check for further possible out of boundaries error.
             if (i + 4 >= insnList.size()) {
                 break;
             }
 
+            // We are searching for LDC instructions that contains color value string.
             if (insnList.get(i).getOpcode() != Opcodes.LDC) {
                 continue;
             }
 
             colorName = ((LdcInsnNode) insnList.get(i)).cst.toString();
 
+            // Check how many instructions in order are numbers to determine color type.
             if(isAsmNumber(insnList.get(i + 4))) {
                 colorType = Color.RGBA;
             } else if(isAsmNumber(insnList.get(i + 3))) {
@@ -121,25 +123,30 @@ public abstract class ThemeClass {
     public void setTheme(HashMap<String, Color> theme) {
         InsnList insnList = methodNode.instructions;
 
+        // Iterate through each insnNode in target method that contains color information.
         for(int i = 0; i < insnList.size(); i++) {
             String colorName;
 
+            // Check for further possible out of boundaries error.
             if (i + 4 >= insnList.size()) {
                 break;
             }
 
+            // We are searching for LDC instructions that contains color value string.
             if (insnList.get(i).getOpcode() != Opcodes.LDC) {
                 continue;
             }
 
             colorName = ((LdcInsnNode) insnList.get(i)).cst.toString();
 
-            Color testColor = new Color(404);
+            Color testColor = new Color(404); // Max color value is 255 each, so 404 greyscale color doesn't exist.
             if(isAsmNumber(insnList.get(i + 4))) {
+                // We use this imaginary testColor to check if color key we found in the bytecode exists in the provided theme file, without error handling.
                 if (theme.getOrDefault(colorName, testColor) == testColor) continue;
 
                 int[] rgb = theme.get(colorName).getRGB();
 
+                // RGBA values have 4 values. Iterate through each and inject instruction nodes in bytecode for each of them.
                 for (int j = 0; j < 4; j++) {
                     insnList.insert(insnList.get(i + j + 1), new IntInsnNode(Opcodes.SIPUSH, rgb[j]));
                     insnList.remove(insnList.get(i + j + 1));
@@ -150,6 +157,7 @@ public abstract class ThemeClass {
 
                 int[] rgb = theme.get(colorName).getRGB();
 
+                // RGB values have 3 values. Iterate through each and inject instruction nodes in bytecode for each of them.
                 for (int j = 0; j < 3; j++) {
                     insnList.insert(insnList.get(i + j + 1), new IntInsnNode(Opcodes.SIPUSH, rgb[j]));
                     insnList.remove(insnList.get(i + j + 1));
@@ -160,7 +168,11 @@ public abstract class ThemeClass {
 
                 int[] rgb = theme.get(colorName).getRGB();
 
+                // GREYSCALE values have 1 value, but we want to expand them as RGB values. More values mean more colors!
                 for (int j = 0; j < 3; j++) {
+                    // There is already one bytecode instruction exist in the bytecode for greyscale value.
+                    // So we are going to remove that in iteration, but we also want to turn it into an RGB value.
+                    // Thus, we are going to inject extra values to make it RGB.
                     boolean isFirstInsnLine = (j == 0);
                     insnList.insert(insnList.get(i + j + (isFirstInsnLine ? 1 : 0)), new IntInsnNode(Opcodes.SIPUSH, rgb[j]));
                     if (isFirstInsnLine) insnList.remove(insnList.get(i + j + 1));
@@ -168,6 +180,7 @@ public abstract class ThemeClass {
 
                 MethodInsnNode invokeVirtual = (MethodInsnNode) insnList.get(i + 4);
 
+                // Change methodInsnNode's descriptor to use the RGB version of the color method.
                 insnList.insert(invokeVirtual, new MethodInsnNode(Opcodes.INVOKEVIRTUAL, invokeVirtual.owner, invokeVirtual.name, invokeVirtual.desc.replaceFirst(";I\\)", ";III)")));
                 insnList.remove(invokeVirtual);
             }
