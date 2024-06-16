@@ -13,6 +13,10 @@ It should work with any version in theory, but it has not been tested extensivel
 
 Head to the [Releases page](https://github.com/Berikai/bitwig-theme-editor/releases) to download the latest version.
 
+## Themes
+
+You can find themes made by community [here](https://github.com/Berikai/awesome-bitwig-themes).
+
 ## Usage
 
 You can run the app directly without parameters to use it with a simple UI.
