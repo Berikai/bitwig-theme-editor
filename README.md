@@ -7,6 +7,10 @@ It should work with any version in theory, but it has not been tested extensivel
 
 > Please back up your **bitwig.jar** file before running the app, just in case.
 
+## Requirements
+
+You need Java 17 or a higher version installed on your computer.
+
 ## Download
 
 [![GitHub release](https://img.shields.io/github/release/Berikai/bitwig-theme-editor.svg)](https://github.com/Berikai/bitwig-theme-editor/releases/latest)
