@@ -27,8 +27,18 @@ public class MainUI extends JFrame {
         change.addActionListener(e -> {
             ThemeChooser themeChooser = new ThemeChooser("Open");
             try {
-                Main.applyTheme(jar.getPath(), themeChooser.getSelectedFile().getPath(), jar);
-                JOptionPane.showMessageDialog(null, "Theme successfully applied from: " + themeChooser.getSelectedFile().getPath(), "Successful!", JOptionPane.INFORMATION_MESSAGE);
+                final int result = Main.applyTheme(jar.getPath(), themeChooser.getSelectedFile().getPath(), jar);
+                if (result == 0) {
+                    JOptionPane.showMessageDialog(null,
+                            "Theme " + themeChooser.getSelectedFile().getPath() + " does not exist, could not be accessed, or is corrupted.",
+                            "Error!",
+                            JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(null,
+                            "Theme successfully applied from: " + themeChooser.getSelectedFile().getPath(),
+                            "Successful!",
+                            JOptionPane.INFORMATION_MESSAGE);
+                }
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }

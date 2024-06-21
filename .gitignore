@@ -9,6 +9,10 @@ build/
 .idea/jarRepositories.xml
 .idea/compiler.xml
 .idea/libraries/
+.idea/codeStyles/
+.idea/jsonSchemas.xml
+.idea/material_theme_project_new.xml
+.idea/vcs.xml
 *.iws
 *.iml
 *.ipr
@@ -39,4 +43,4 @@ bin/
 .vscode/
 
 ### Mac OS ###
-.DS_Store
+.DS_Store!/.idea/vcs.xml
