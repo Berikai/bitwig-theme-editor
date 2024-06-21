@@ -77,9 +77,11 @@ public class Main {
         System.out.println("Theme successfully exported to: " + path);
     }
 
-    public static void applyTheme(String bitwig_path, String path, JarNode jar) throws IOException {
+    public static int applyTheme(String bitwig_path, String path, JarNode jar) throws IOException {
         System.out.println("Applying theme from: " + path);
         File file = new File(path);
+        
+        // If the operation succeeds, return 1
         if (file.exists() && file.canRead()) {
             ThemeClass windowThemeClass = new WindowThemeClass(jar.getNodes());
             ThemeClass arrangerThemeClass = new ArrangerThemeClass(jar.getNodes());
@@ -92,8 +94,11 @@ public class Main {
 
             jar.export(bitwig_path);
             System.out.println("Theme successfully applied from: " + path);
-        } else {
-            System.err.println("Failed to apply theme. File not found or permission issue.");
+            return 1;
         }
+        
+        // Otherwise return 0 so that client can handle this
+        System.err.println("Failed to apply theme. File not found or permission issue.");
+        return 0;
     }
 }
