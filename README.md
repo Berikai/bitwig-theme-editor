@@ -7,6 +7,10 @@ It should work with any version in theory, but it has not been tested extensivel
 
 > Please back up your **bitwig.jar** file before running the app, just in case.
 
+### Bitwig Theme Editor WebUI
+
+You can check the in development visual theme editor [here](https://berikai.github.io/bitwig-theme-editor-webui/)!
+
 ## Requirements
 
 You need Java 17 or a higher version installed on your computer.
