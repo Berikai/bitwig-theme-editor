@@ -18,6 +18,19 @@ import java.util.HashMap;
 import java.util.TreeMap;
 
 public class ThemeFile {
+    protected static void implementAdvancedFeatures(HashMap<String, HashMap<String, String>> themePair, HashMap<String, HashMap<String, BitwigColor>> theme) {
+        if (themePair.get("advanced") == null)
+            return;
+
+        HashMap<String, BitwigColor> advancedTheme = new HashMap<>();
+
+        for (String key : themePair.get("advanced").keySet()) {
+            advancedTheme.put(key, new BitwigColor(themePair.get("advanced").get(key)));
+        }
+
+        theme.put("advanced", advancedTheme);
+    }
+
     public static HashMap<String, HashMap<String, BitwigColor>> readTheme(String path) throws IOException {
         String content = Files.readString(Paths.get(path), StandardCharsets.UTF_8);
 
@@ -52,6 +65,8 @@ public class ThemeFile {
 
         theme.put("window", windowTheme);
         theme.put("arranger", arrangerTheme);
+
+        implementAdvancedFeatures(themePair, theme);
 
         return theme;
     }

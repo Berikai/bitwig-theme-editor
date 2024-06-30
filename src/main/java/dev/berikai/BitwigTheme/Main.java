@@ -5,6 +5,7 @@ import dev.berikai.BitwigTheme.UI.MainUI;
 import dev.berikai.BitwigTheme.asm.JarNode;
 import dev.berikai.BitwigTheme.core.BitwigColor;
 import dev.berikai.BitwigTheme.core.ThemeClass;
+import dev.berikai.BitwigTheme.core.advanced.AdvancedThemeManagerClass;
 import dev.berikai.BitwigTheme.core.impl.ArrangerThemeClass;
 import dev.berikai.BitwigTheme.core.HashCheckClass;
 import dev.berikai.BitwigTheme.core.impl.WindowThemeClass;
@@ -86,8 +87,12 @@ public class Main {
             ThemeClass windowThemeClass = new WindowThemeClass(jar.getNodes());
             ThemeClass arrangerThemeClass = new ArrangerThemeClass(jar.getNodes());
 
+            AdvancedThemeManagerClass advancedThemeManagerClass = new AdvancedThemeManagerClass(jar.getNodes());
+
             windowThemeClass.setTheme(ThemeFile.readTheme(path).get("window"));
             arrangerThemeClass.setTheme(ThemeFile.readTheme(path).get("arranger"));
+
+            advancedThemeManagerClass.setTheme(ThemeFile.readTheme(path).get("advanced"));
 
             HashCheckClass hashCheckClass = new HashCheckClass(jar.getNodes());
             hashCheckClass.disableHashCheck();
