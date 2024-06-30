@@ -23,4 +23,17 @@ public class AdvancedThemeManagerClass {
                 new TimelinePlayheadClass(classNodes).setTheme(theme);
         }
     }
+
+    public HashMap<String, BitwigColor> getTheme() {
+        HashMap<String, BitwigColor> theme_bundled = new HashMap<>();
+
+        TimelinePlayheadClass timelinePlayheadClass = new TimelinePlayheadClass(classNodes);
+
+        for (String key : timelinePlayheadClass.getTheme().keySet()) {
+            if (key.equals("Timeline Playhead"))
+                theme_bundled.put("Timeline Playhead", timelinePlayheadClass.getTheme().get("Timeline Playhead"));
+        }
+
+        return theme_bundled;
+    }
 }

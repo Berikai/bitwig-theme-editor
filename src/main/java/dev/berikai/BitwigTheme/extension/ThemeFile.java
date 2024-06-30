@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.TreeMap;
 
 public class ThemeFile {
-    protected static void implementAdvancedFeatures(HashMap<String, HashMap<String, String>> themePair, HashMap<String, HashMap<String, BitwigColor>> theme) {
+    protected static void implementAdvancedReadFeatures(HashMap<String, HashMap<String, String>> themePair, HashMap<String, HashMap<String, BitwigColor>> theme) {
         if (themePair.get("advanced") == null)
             return;
 
@@ -29,6 +29,16 @@ public class ThemeFile {
         }
 
         theme.put("advanced", advancedTheme);
+    }
+
+    protected static void implementAdvancedExportFeatures(HashMap<String, TreeMap<String, String>> themePair, HashMap<String, TreeMap<String, BitwigColor>> theme) {
+        TreeMap<String, String> advancedThemePair = new TreeMap<>();
+
+        for (String key : theme.get("advanced").keySet()) {
+            advancedThemePair.put(key, theme.get("advanced").get(key).getHex());
+        }
+
+        themePair.put("advanced", advancedThemePair);
     }
 
     public static HashMap<String, HashMap<String, BitwigColor>> readTheme(String path) throws IOException {
@@ -66,7 +76,7 @@ public class ThemeFile {
         theme.put("window", windowTheme);
         theme.put("arranger", arrangerTheme);
 
-        implementAdvancedFeatures(themePair, theme);
+        implementAdvancedReadFeatures(themePair, theme);
 
         return theme;
     }
@@ -88,6 +98,8 @@ public class ThemeFile {
 
         themePair.put("window", windowThemePair);
         themePair.put("arranger", arrangerThemePair);
+
+        implementAdvancedExportFeatures(themePair, theme);
 
         if (path.toLowerCase().endsWith(".yaml")) {
             DumperOptions options = new DumperOptions();

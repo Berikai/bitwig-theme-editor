@@ -32,6 +32,16 @@ public class TimelinePlayheadClass {
         }
     }
 
+    protected String getThemeFieldName() {
+        InsnList insnList = methodNode.instructions;
+        for (AbstractInsnNode insnNode : insnList) {
+            if (insnNode.getOpcode() == Opcodes.GETSTATIC) {
+                return ((FieldInsnNode) insnNode).name;
+            }
+        }
+        return "";
+    }
+
     public void setTheme(HashMap<String, BitwigColor> theme) {
         ColorClass colorClass = new ColorClass(classNodes);
 
@@ -48,5 +58,15 @@ public class TimelinePlayheadClass {
                 insnList.remove(insnNode);
             }
         }
+    }
+
+    public HashMap<String, BitwigColor> getTheme() {
+        ColorClass colorClass = new ColorClass(classNodes);
+
+        HashMap<String, BitwigColor> theme = new HashMap<>();
+
+        theme.put("Timeline Playhead", colorClass.getGlobalColor(getThemeFieldName()));
+
+        return theme;
     }
 }

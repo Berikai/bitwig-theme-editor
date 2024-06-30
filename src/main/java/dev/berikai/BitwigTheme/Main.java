@@ -68,11 +68,15 @@ public class Main {
         ThemeClass windowThemeClass = new WindowThemeClass(jar.getNodes());
         ThemeClass arrangerThemeClass = new ArrangerThemeClass(jar.getNodes());
 
+        AdvancedThemeManagerClass advancedThemeManagerClass = new AdvancedThemeManagerClass(jar.getNodes());
+
         // Inner HashMap changed to TreeMap to order keys alphabetically.
         HashMap<String, TreeMap<String, BitwigColor>> theme = new HashMap<>();
 
         theme.put("window", new TreeMap<>(windowThemeClass.getTheme()));
         theme.put("arranger", new TreeMap<>(arrangerThemeClass.getTheme()));
+
+        theme.put("advanced", new TreeMap<>(advancedThemeManagerClass.getTheme()));
 
         ThemeFile.exportTheme(theme, path);
         System.out.println("Theme successfully exported to: " + path);

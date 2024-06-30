@@ -35,6 +35,18 @@ public class ColorClass {
         }
     }
 
+    private Number getAsmNumber(AbstractInsnNode insnNode) {
+        if (insnNode.getOpcode() == Opcodes.LDC) return (Number)((LdcInsnNode) insnNode).cst;
+
+        if (insnNode.getOpcode() == Opcodes.DCONST_0) return 0.0D;
+        if (insnNode.getOpcode() == Opcodes.DCONST_1) return 1.0D;
+        if (insnNode.getOpcode() == Opcodes.FCONST_0) return 0.0F;
+        if (insnNode.getOpcode() == Opcodes.FCONST_1) return 1.0F;
+        if (insnNode.getOpcode() == Opcodes.FCONST_2) return 2.0F;
+
+        return -1;
+    }
+
     public ClassNode getClassNode() {
         return classNode;
     }
@@ -50,6 +62,26 @@ public class ColorClass {
         // Create a new global color field in main color class, so we can use it elsewhere easily.
         classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, fieldName, "L" + classNode.name + ";", null, null));
         return true;
+    }
+
+    public BitwigColor getGlobalColor(String fieldName) {
+        // Read the color values of the field.
+        for (MethodNode methodNode : classNode.methods) {
+            if (methodNode.name.equals("<clinit>")) {
+                InsnList insnList = methodNode.instructions;
+                for (int i = 0; i < insnList.size(); i++) {
+                    if (insnList.get(i).getOpcode() == Opcodes.PUTSTATIC && ((FieldInsnNode) insnList.get(i)).name.equals(fieldName)) {
+                        return new BitwigColor(
+                                getAsmNumber(insnList.get(i - 5)).intValue() * 255,
+                                getAsmNumber(insnList.get(i - 4)).intValue()  * 255,
+                                getAsmNumber(insnList.get(i - 3)).intValue()  * 255,
+                                getAsmNumber(insnList.get(i - 2)).intValue()  * 255
+                        );
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     // Set a global color field, create if it doesn't exist.
