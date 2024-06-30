@@ -69,26 +69,6 @@ Open the project with a Java IDE of your choice; IntelliJ IDEA is recommended. Y
 
 Pull requests are welcome!
 
-## Example Themes
-
-Example themes can be found in [Themes](themes) folder
-
-#### Bitwig Default
-
-![Default Theme](themes/default.png)
-
-#### Medium Blue
-
-![Medium Blue Theme](themes/medium_blue.png)
-
-#### Dark Red
-
-![Dark Red Theme](themes/dark_red.png)
-
-#### Ultra Light
-
-![Ultra Light Theme](themes/ultra_light.png)
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
