@@ -1,19 +1,10 @@
+<h1 align="left">Bitwig Studio Theme Editor</h1>
 
-# Bitwig Studio Theme Editor
+<img align="right" src="https://github.com/Berikai/bitwig-theme-editor/assets/18515671/8c76c8c6-30b4-43cf-9043-17759e744d75" width="50%" alt="ui" />
 
 A theme editor for Bitwig Studio, written in java. Bitwig meets themes, finally!
 
-It should work with any version in theory, but it has not been tested extensively yet.
-
-> Please back up your **bitwig.jar** file before running the app, just in case.
-
-### Bitwig Theme Editor WebUI
-
-You can check the in development visual theme editor [here](https://berikai.github.io/bitwig-theme-editor-webui/)!
-
-## Requirements
-
-You need Java 17 or a higher version installed on your computer.
+> :warning: Please back up your **bitwig.jar** file before running the app, just in case.
 
 ## Download
 
@@ -21,15 +12,27 @@ You need Java 17 or a higher version installed on your computer.
 
 Head to the [Releases page](https://github.com/Berikai/bitwig-theme-editor/releases) to download the latest version.
 
+## Requirements
+
+You need Java 17 or a higher version installed on your computer.
+
+It should work with any Bitwig Studio version in theory, but it has not been tested extensively yet.
+
 ## Themes
 
+### Where to find themes?
+
 You can find themes made by community [here](https://github.com/Berikai/awesome-bitwig-themes).
+
+### How to create themes?
+
+You can check the in development visual theme editor [here](https://berikai.github.io/bitwig-theme-editor-webui/)!
+
+Another way of creating themes is editing a theme file. You can do this by exporting the theme file via Bitwig Theme Editor from your **bitwig.jar** and changing color values on the exported theme file.
 
 ## Usage
 
 You can run the app directly without parameters to use it with a simple UI.
-
-![Basic UI](https://github.com/Berikai/bitwig-theme-editor/assets/18515671/8c76c8c6-30b4-43cf-9043-17759e744d75)
 
 Alternatively, you can run:
 ```bash
