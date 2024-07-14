@@ -31,6 +31,11 @@ public class HashCheckClass {
     }
 
     public void disableHashCheck() {
+        if (classNode == null) {
+            System.out.println("WARNING: Couldn't disable integrity check!");
+            return;
+        }
+
         outer: for (MethodNode hashMethod : classNode.methods) {
             if (hashMethod.access == Opcodes.ACC_PRIVATE && hashMethod.desc.equals("(II)V")) {
                 InsnList insnList = hashMethod.instructions;

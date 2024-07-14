@@ -43,11 +43,16 @@ public class TimelinePlayheadClass {
     }
 
     public void setTheme(HashMap<String, BitwigColor> theme) {
-        ColorClass colorClass = new ColorClass(classNodes);
+        if (methodNode == null) {
+            System.out.println("WARNING: Couldn't change the Timeline Playhead color!");
+            return;
+        }
 
         if (theme.get("Timeline Playhead") == null) {
             return;
         }
+
+        ColorClass colorClass = new ColorClass(classNodes);
 
         colorClass.setGlobalColorField("timeline_playhead", theme.get("Timeline Playhead"));
 
@@ -64,6 +69,11 @@ public class TimelinePlayheadClass {
         ColorClass colorClass = new ColorClass(classNodes);
 
         HashMap<String, BitwigColor> theme = new HashMap<>();
+
+        if (methodNode == null) {
+            System.out.println("WARNING: Couldn't get the Timeline Playhead color!");
+            return theme;
+        }
 
         theme.put("Timeline Playhead", colorClass.getGlobalColor(getThemeFieldName()));
 
