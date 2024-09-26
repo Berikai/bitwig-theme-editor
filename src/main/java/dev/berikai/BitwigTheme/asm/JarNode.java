@@ -1,7 +1,9 @@
 package dev.berikai.BitwigTheme.asm;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,11 +30,21 @@ public class JarNode {
         readEntries();
     }
 
+    private static byte[] readAllBytesFromInputStream(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] data = new byte[1024];
+        int bytesRead;
+        while ((bytesRead = inputStream.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, bytesRead);
+        }
+        return buffer.toByteArray();
+    }
+
     private void readEntries() throws IOException {
         Enumeration<? extends ZipEntry> entries = inputFile.entries();
         while (entries.hasMoreElements()) {
             ZipEntry entry = entries.nextElement();
-            byte[] stream = inputFile.getInputStream(entry).readAllBytes();
+            byte[] stream = readAllBytesFromInputStream(inputFile.getInputStream(entry));
             if (entry.getName().endsWith(".class")) {
                 ClassReader classReader = new ClassReader(stream);
                 ClassNode classNode = new ClassNode();

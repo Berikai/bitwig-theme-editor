@@ -42,7 +42,7 @@ public class ThemeFile {
     }
 
     public static HashMap<String, HashMap<String, BitwigColor>> readTheme(String path) throws IOException {
-        String content = Files.readString(Paths.get(path), StandardCharsets.UTF_8);
+        String content = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
 
         HashMap<String, HashMap<String, String>> themePair = new HashMap<>();
 
