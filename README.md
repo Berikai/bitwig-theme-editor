@@ -14,7 +14,7 @@ Head to the [Releases page](https://github.com/Berikai/bitwig-theme-editor/relea
 
 ## Requirements
 
-You need Java 17 or a higher version installed on your computer.
+You need Java 8 or a higher version installed on your computer.
 
 It should work with any Bitwig Studio version in theory, but it has not been tested extensively yet.
 
@@ -64,7 +64,7 @@ Voilà! You have themed your Bitwig!
 This project is built using the following tools.
 
 - IntelliJ IDEA Community Edition
-- Java 17 JDK
+- Java 8 JDK
 
 Open the project with a Java IDE of your choice; IntelliJ IDEA is recommended. You can build the project with the `jar` task via Gradle.
 
