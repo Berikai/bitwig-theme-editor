@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.TreeMap;
+import java.util.zip.ZipException;
 
 public class Main {
     public static JarNode jar;
@@ -46,9 +47,19 @@ public class Main {
 
         String bitwig_path = args[0];
         String command = args[1];
-        String theme_path = args [2];
+        String theme_path = args[2];
 
-        jar = new JarNode(bitwig_path);
+        try {
+            jar = new JarNode(bitwig_path);
+        } catch (ZipException e) {
+            String errorMessage = "JAR file " + bitwig_path + " is not valid or corrupted.";
+            System.err.println(errorMessage);
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            String errorMessage = "JAR file " + bitwig_path + " does not exist or could not be accessed. Try to run as admin/root.";
+            System.err.println(errorMessage);
+            throw new RuntimeException(e);
+        }
 
         switch (command) {
             case "export":
@@ -101,11 +112,16 @@ public class Main {
             HashCheckClass hashCheckClass = new HashCheckClass(jar.getNodes());
             hashCheckClass.disableHashCheck();
 
-            jar.export(bitwig_path);
-            System.out.println("Theme successfully applied from: " + path);
-            return 1;
+            try {
+                jar.export(bitwig_path);
+                System.out.println("Theme successfully applied from: " + path);
+                return 1;
+            } catch (Exception e) {
+                System.err.println("Failed to apply theme. Couldn't write to JAR file.");
+                return 2;
+            }
         }
-        
+
         // Otherwise return 0 so that client can handle this
         System.err.println("Failed to apply theme. File not found or permission issue.");
         return 0;

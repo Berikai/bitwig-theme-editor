@@ -7,9 +7,10 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.io.IOException;
+import java.util.zip.ZipException;
 
 public class MainUI extends JFrame {
-    public MainUI() throws IOException {
+    public MainUI() {
         setTitle("Select Operation");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(250, 75);
@@ -18,7 +19,25 @@ public class MainUI extends JFrame {
 
         JarChooser jarChooser = new JarChooser();
 
-        JarNode jar = new JarNode(jarChooser.getSelectedFile().getPath());
+        JarNode jar;
+
+        try {
+            jar = new JarNode(jarChooser.getSelectedFile().getPath());
+        } catch (ZipException e) {
+            String errorMessage = "Selected file " + jarChooser.getSelectedFile().getPath() + " is either invalid JAR file or corrupted.";
+            JOptionPane.showMessageDialog(null,
+                    errorMessage,
+                    "Error!",
+                    JOptionPane.INFORMATION_MESSAGE);
+            throw new RuntimeException(errorMessage);
+        } catch (Exception e) {
+            String errorMessage = "JAR File " + jarChooser.getSelectedFile().getPath() + " does not exist or could not be accessed. Try to run as admin/root.";
+            JOptionPane.showMessageDialog(null,
+                    errorMessage,
+                    "Error!",
+                    JOptionPane.INFORMATION_MESSAGE);
+            throw new RuntimeException(errorMessage);
+        }
 
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 7));
 
@@ -33,10 +52,15 @@ public class MainUI extends JFrame {
                             "Theme " + themeChooser.getSelectedFile().getPath() + " does not exist, could not be accessed, or is corrupted.",
                             "Error!",
                             JOptionPane.INFORMATION_MESSAGE);
-                } else {
+                } else if (result == 1) {
                     JOptionPane.showMessageDialog(null,
                             "Theme successfully applied from: " + themeChooser.getSelectedFile().getPath(),
                             "Successful!",
+                            JOptionPane.INFORMATION_MESSAGE);
+                } else if (result == 2) {
+                    JOptionPane.showMessageDialog(null,
+                            "Couldn't write to JAR file " + jarChooser.getSelectedFile().getPath() + ". Possibly permission issue. Try to run as admin/root.",
+                            "Error!",
                             JOptionPane.INFORMATION_MESSAGE);
                 }
             } catch (IOException ex) {
