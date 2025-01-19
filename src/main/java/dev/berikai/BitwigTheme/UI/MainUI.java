@@ -46,6 +46,7 @@ public class MainUI extends JFrame {
         change.addActionListener(e -> {
             ThemeChooser themeChooser = new ThemeChooser("Open");
             try {
+                setTitle("Applying the theme, please wait...");
                 final int result = Main.applyTheme(jar.getPath(), themeChooser.getSelectedFile().getPath(), jar);
                 if (result == 0) {
                     JOptionPane.showMessageDialog(null,
@@ -63,6 +64,7 @@ public class MainUI extends JFrame {
                             "Error!",
                             JOptionPane.INFORMATION_MESSAGE);
                 }
+                setTitle("Select Operation");
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
