@@ -13,7 +13,7 @@ public class HashCheckClass {
 
     public HashCheckClass(HashMap<String, ClassNode> classNodes) {
         this.classNodes = classNodes;
-        findNodes("Undisposed Documents");
+        findNodes("MD5");
     }
 
     protected void findNodes(String search_text) {
@@ -21,6 +21,7 @@ public class HashCheckClass {
             for (MethodNode methodNode : classNode.methods) {
                 for (AbstractInsnNode insnNode : methodNode.instructions) {
                     if (insnNode.getOpcode() == Opcodes.LDC && ((LdcInsnNode) insnNode).cst.equals(search_text)) {
+                        if (!classNode.name.startsWith("com/bitwig/flt/document/core/master")) continue outer;
                         this.classNode = classNode;
                         JarNode.getModifiedNodes().put(classNode.name, classNode);
                         break outer;
