@@ -6,11 +6,26 @@ import dev.berikai.BitwigTheme.asm.JarNode;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.zip.ZipException;
 
 public class MainUI extends JFrame {
-    public MainUI() {
+    public MainUI() throws URISyntaxException {
+        // dev.berikai.BitwigTheme.UI is still in development, all existing UI codes are deprecated but kept for future reference
+        // For now, please use command line version
+        String jarName = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()).getName();
+
+        JOptionPane.showMessageDialog(null,
+                "GUI is still in development. For now, please use command line with jar path.\n"
+                        + "java -jar " + jarName + " <bitwig-jar-path>\n\n",
+                "ATTENTION!",
+                JOptionPane.INFORMATION_MESSAGE);
+        System.exit(0);
+
+        // --------------------------------
+
         setTitle("Select Operation");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(250, 75);
@@ -47,18 +62,13 @@ public class MainUI extends JFrame {
             ThemeChooser themeChooser = new ThemeChooser("Open");
             try {
                 setTitle("Applying the theme, please wait...");
-                final int result = Main.applyTheme(jar.getPath(), themeChooser.getSelectedFile().getPath(), jar);
-                if (result == 0) {
-                    JOptionPane.showMessageDialog(null,
-                            "Theme " + themeChooser.getSelectedFile().getPath() + " does not exist, could not be accessed, or is corrupted.",
-                            "Error!",
-                            JOptionPane.INFORMATION_MESSAGE);
-                } else if (result == 1) {
+                final int result = Main.applyPatch(jar.getPath(), jar);
+                if (result == 1) {
                     JOptionPane.showMessageDialog(null,
                             "Theme successfully applied from: " + themeChooser.getSelectedFile().getPath(),
                             "Successful!",
                             JOptionPane.INFORMATION_MESSAGE);
-                } else if (result == 2) {
+                } else if (result == 0) {
                     JOptionPane.showMessageDialog(null,
                             "Couldn't write to JAR file " + jarChooser.getSelectedFile().getPath() + ". Possibly permission issue. Try to run as admin/root.",
                             "Error!",
@@ -82,9 +92,9 @@ public class MainUI extends JFrame {
                     JOptionPane.showMessageDialog(null, "Please use YAML or JSON file format while exporting current theme!", "ERROR!", JOptionPane.ERROR_MESSAGE);
                     System.exit(1);
                 }
-                Main.exportCurrentTheme(path, jar);
+                //Main.exportCurrentTheme(path, jar);
                 JOptionPane.showMessageDialog(null, "Theme successfully exported to: " + path, "Successful!", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException ex) {
+            } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
         });
