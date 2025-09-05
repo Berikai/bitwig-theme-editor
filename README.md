@@ -1,109 +1,86 @@
-# Bitwig Studio Theme Editor
+# Bitwig Studio Theme Editor (2.x-development)
 
-<img align="right" src="https://github.com/Berikai/bitwig-theme-editor/assets/18515671/8c76c8c6-30b4-43cf-9043-17759e744d75" width="50%" alt="UI preview" />
+A theme editor for **Bitwig Studio**, written in Java.
 
-A theme editor for **Bitwig Studio**, written in Java.  
-Bitwig meets themes, finally!  
-
-> ⚠ **Warning:** Please back up your **bitwig.jar** file before using this app, just in case.
+> ⚠ **Warning:** Please back up your **bitwig.jar** file before using this program, just in case.
 
 ---
 
-## 📥 Download  
+## 📥 Download
 
-[![GitHub release](https://img.shields.io/github/release/Berikai/bitwig-theme-editor.svg)](https://github.com/Berikai/bitwig-theme-editor/releases/latest)  
+> This branch is for **Bitwig Theme Editor 2.x-development**, you may experience bugs and unfinished features.
 
-Download the latest version from the [Releases page](https://github.com/Berikai/bitwig-theme-editor/releases).  
+Download the latest version from the [releases page](https://github.com/Berikai/bitwig-theme-editor/releases/2.0.0-dev1)
+
+#### 🕰️ Looking for the old version? (1.x)
+<sup>[Legacy Download](https://github.com/Berikai/bitwig-theme-editor/releases/tag/1.4.3)   [Source Code](https://github.com/Berikai/bitwig-theme-editor/tree/1.4.3-stable)</sup>
+
+### ⚙️ Requirements
+
+- Bitwig Studio 4.x, 5.x or 6.x
+- **Java 8** or later
 
 ---
 
-## ⚙️ Requirements  
+## 🚀 Usage
 
-- **Java 8** or a newer version installed on your system.  
-- Compatible with **any Bitwig Studio version** (theoretically), though not extensively tested.  
-
----
-
-## 🚀 Usage  
-
-The app can be used via a simple UI by running it without any parameters.  
-
-Alternatively, you can run it via the command line:  
+Run the program by **double-clicking**, or executing the following command in terminal:
 
 ```bash
-java -jar bitwig-theme-editor.jar <bitwig-jar-path> [command] <theme-path>
+java -jar bitwig-theme-editor.jar
 ```
 
-### 🔹 Available Commands  
+You can also provide the path to your **bitwig.jar** to patch directly:
 
-| Command  | Description |
-|----------|------------|
-| `export` | Exports the current Bitwig theme to a file (overwrites existing file). |
-| `apply`  | Applies a new theme by modifying **bitwig.jar** with the specified theme file. |
-
-### 🔹 Example Usage  
-
-Export the current theme:  
 ```bash
-java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar export current-bitwig-theme.yaml
-```
-
-Apply a new theme:  
-```bash
-java -jar bitwig-theme-editor.jar /opt/bitwig-studio/bin/bitwig.jar apply custom-theme.json
+java -jar bitwig-theme-editor.jar <bitwig-jar-path>
 ```
 
 ---
 
-## 🎨 Themes  
+## 🎨 Themes
 
-### 📍 Where to find themes?  
-Community-made themes are available [here](https://github.com/Berikai/awesome-bitwig-themes).  
+### 📍 Where to find themes?
+Community-made themes are available [here](https://github.com/Berikai/awesome-bitwig-themes).
 
-### 🛠 How to create themes?  
-You can use the **visual theme editor**:  
-➡ [WebUI](https://berikai.github.io/bitwig-theme-editor-webui/)  
+> **Since the theme file format is completely changed, old themes are not compatible with the new version. Community themes repository won't accept any new theme format until the new version is stable. Please be aware that new format can be changed in development before the stable release.**
 
-Alternatively, you can manually edit a theme file by:  
-1. **Exporting** the theme from your **bitwig.jar** using Bitwig Theme Editor.  
-2. **Modifying** the color values in the exported file.  
-3. **Applying** the theme back to Bitwig using the editor.  
 
----
+### 🛠 How to create themes?
+You can use theme editor user interface to change colors and create your own theme! But, that's currently in development... 
 
-## 📖 How It Works  
+Or, you can manually create the theme file after patching Bitwig Studio:
 
-1. Run the **export** command to extract the current Bitwig theme from **bitwig.jar**.  
-   - The exported file will be in **JSON** or **YAML** format.  
-2. Modify the color values in the exported theme file.  
-3. Run the **apply** command to apply the edited theme.  
+1. Run Bitwig Studio
+2. A file named `default.bte` will be created in the directory of Bitwig Studio executable
+3. Create a file named `theme.bte` in the same directory
+4. Add the lines of the color values you want to change, modify, and save
+5. Click on the "Dashboard Button" or resize the window to render changes
 
-🎉 **Done! Your Bitwig Studio now has a custom theme!**  
-
-> **Note:** RGBA values (instead of RGB) are **not supported** since it may cause UI glitches.  
-> However, you can use RGBA where it is already present in the theme file.  
+Happy theming!
 
 ---
 
-## 🛠 Development  
+## 🛠 Development
 
-### 🏗 Built With  
-- **Java 8 JDK**  
-- **IntelliJ IDEA Community Edition** (recommended IDE)  
+### 🏗 Built With
+- **Java 8 JDK**
+- **IntelliJ IDEA Community Edition** (recommended IDE)
 
-### 🔹 How to Build  
-- Open the project in a Java IDE of your choice.  
-- Use `jar` task defined in Gradle to build the project.  
+### 🔹 How to Build
+
+- Open the project in a Java IDE of your choice.
+- Use `jar` task defined in Gradle to build the project.
 
 ---
 
-## 🤝 Contribution  
+## 🤝 Contribution
 
 Pull requests are **welcome!**  
-Feel free to contribute and help me improve the project.  
+Feel free to contribute and help me improve the project.
 
 ---
 
-## 📜 License  
+## 📜 License
 
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
