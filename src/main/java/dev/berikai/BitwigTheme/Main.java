@@ -10,6 +10,7 @@ import dev.berikai.BitwigTheme.core.impl.ColorPatchClass;
 import org.objectweb.asm.tree.FieldNode;
 
 import javax.swing.*;
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -34,13 +35,22 @@ public class Main {
 
         // Print introduction
         System.out.println("Bitwig Theme Editor " + version);
-        System.out.println("DISCLAIMER: This is an unofficial free open source 3rd party tool, made with educational purposes only. Use at your own risk.");
-        System.out.println("");
+        System.out.println("DISCLAIMER: This is an unofficial free open source 3rd party tool, made with educational purposes only. Author is not responsible for any damage caused by using this tool. Use at your own risk.");
+        System.out.println();
 
         // Run UI, if no argument given
         if (args.length == 0) {
             UIManager.setLookAndFeel(new FlatMTMaterialDarkerIJTheme());
-            new MainUI();
+            try {
+                new MainUI();
+            } catch (HeadlessException headlessException) {
+                System.out.println("ERROR: GUI cannot be run in headless environment.");
+                System.out.println(" -> Make sure your JRE/JDK installation includes GUI support (e.g. Oracle JDK).");
+                System.out.println(" -> As a last resort, you can use command line with jar path instead.");
+                System.out.println();
+                printUsage();
+                System.out.println();
+            }
             return;
         }
 
@@ -74,24 +84,24 @@ public class Main {
         if(result == 1) {
             // Brief usage instruction
             System.out.println("Patch successful!");
-            System.out.println("");
+            System.out.println();
             System.out.println("1. Run Bitwig Studio");
-            System.out.println("2. A file named 'default.bte' will be created in the directory of Bitwig Studio executable");
+            System.out.println("2. A file named 'default.bte' will be created in the directory of bitwig.jar");
             System.out.println("3. Create a file named 'theme.bte' in the same directory");
             System.out.println("4. Add the lines of the color values you want to change, modify, and save");
             System.out.println("5. Click on the 'Dashboard Button' or resize the window to render changes");
             System.out.println("Note: You can also run this app with GUI to change theme!");
-            System.out.println("");
+            System.out.println();
 
             System.out.println("Happy theming!");
-            System.out.println("");
+            System.out.println();
         }
 
         // ❤
         System.out.println("If you enjoy the project and feel like showing a little love, thank you!");
         System.out.println("❤ Donate ETH/BNB: 0x3aCdA83c0EAD65033cD532357De3c8B71b1C94d5");
         System.out.println("❤ Buy Me A Coffee: https://buymeacoffee.com/verdant");
-        System.out.println("");
+        System.out.println();
     }
 
     public static int applyPatch(String bitwig_path, JarNode jar) throws IOException {
@@ -122,7 +132,7 @@ public class Main {
         for (String key : PatchClass.mappings.keySet()) {
             System.out.println("> Mapping: " + key + " -> " + PatchClass.mappings.get(key));
         }
-        System.out.println("");
+        System.out.println();
 
         // Apply patches
         colorClass.patch();
