@@ -3,6 +3,7 @@ package dev.berikai.BitwigTheme.core.impl;
 import dev.berikai.BitwigTheme.core.PatchClass;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
 import java.util.HashMap;
@@ -78,6 +79,61 @@ public class BridgePatchClass extends PatchClass {
         // Get argument base index, avoid this if not static
         int mArgIndex = ((methodNode.access & Opcodes.ACC_STATIC) == 0) ? 1 : 0;
 
+        // Get path to "default.bte" file
+        // Here is the corresponding Java code:
+        //        ldc Lcom/bitwig/flt/app/BitwigStudioMain;
+        //        invokevirtual java/lang/Class.getProtectionDomain ()Ljava/security/ProtectionDomain;
+        //        invokevirtual java/security/ProtectionDomain.getCodeSource ()Ljava/security/CodeSource;
+        //        invokevirtual java/security/CodeSource.getLocation ()Ljava/net/URL;
+        //        invokevirtual java/net/URL.toURI ()Ljava/net/URI;
+        //        invokestatic java/nio/file/Paths.get (Ljava/net/URI;)Ljava/nio/file/Path;
+        //        invokeinterface java/nio/file/Path.getParent ()Ljava/nio/file/Path;
+        //        ldc "default.bte"
+        //        invokeinterface java/nio/file/Path.resolve (Ljava/lang/String;)Ljava/nio/file/Path;
+        //        invokeinterface java/nio/file/Path.toString ()Ljava/lang/String;
+        //        astore themePath
+
+        il.add(new LabelNode());
+        il.add(new LdcInsnNode(Type.getObjectType("com/bitwig/flt/app/BitwigStudioMain")));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getProtectionDomain", "()Ljava/security/ProtectionDomain;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/ProtectionDomain", "getCodeSource", "()Ljava/security/CodeSource;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/CodeSource", "getLocation", "()Ljava/net/URL;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/net/URL", "toURI", "()Ljava/net/URI;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/nio/file/Paths", "get", "(Ljava/net/URI;)Ljava/nio/file/Path;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "getParent", "()Ljava/nio/file/Path;", true));
+        il.add(new LdcInsnNode("default.bte"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "resolve", "(Ljava/lang/String;)Ljava/nio/file/Path;", true));
+        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "toString", "()Ljava/lang/String;", true));
+        int defaultPathSlot = methodNode.maxLocals++;
+        il.add(new VarInsnNode(Opcodes.ASTORE, defaultPathSlot));
+
+        // Get path to "theme.bte" file
+        // Here is the corresponding Java code:
+        //        ldc Lcom/bitwig/flt/app/BitwigStudioMain;
+        //        invokevirtual java/lang/Class.getProtectionDomain ()Ljava/security/ProtectionDomain;
+        //        invokevirtual java/security/ProtectionDomain.getCodeSource ()Ljava/security/CodeSource;
+        //        invokevirtual java/security/CodeSource.getLocation ()Ljava/net/URL;
+        //        invokevirtual java/net/URL.toURI ()Ljava/net/URI;
+        //        invokestatic java/nio/file/Paths.get (Ljava/net/URI;)Ljava/nio/file/Path;
+        //        invokeinterface java/nio/file/Path.getParent ()Ljava/nio/file/Path;
+        //        ldc "theme.bte"
+        //        invokeinterface java/nio/file/Path.resolve (Ljava/lang/String;)Ljava/nio/file/Path;
+        //        invokeinterface java/nio/file/Path.toString ()Ljava/lang/String;
+        //        putstatic ColorClass.themeFilePath Ljava/lang/String;
+
+        il.add(new LabelNode());
+        il.add(new LdcInsnNode(Type.getObjectType("com/bitwig/flt/app/BitwigStudioMain")));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getProtectionDomain", "()Ljava/security/ProtectionDomain;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/ProtectionDomain", "getCodeSource", "()Ljava/security/CodeSource;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/CodeSource", "getLocation", "()Ljava/net/URL;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/net/URL", "toURI", "()Ljava/net/URI;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/nio/file/Paths", "get", "(Ljava/net/URI;)Ljava/nio/file/Path;"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "getParent", "()Ljava/nio/file/Path;", true));
+        il.add(new LdcInsnNode("theme.bte"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "resolve", "(Ljava/lang/String;)Ljava/nio/file/Path;", true));
+        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "toString", "()Ljava/lang/String;", true));
+        il.add(new FieldInsnNode(Opcodes.PUTSTATIC, PatchClass.mappings.get("ColorClass"), "themeFilePath", "Ljava/lang/String;"));
+
         // Color class doesn't store color names originally
         // That's why we manually created them in ColorPatchClass
         // So, first of all, we need to run "colorInstance.colorName = colorName;"
@@ -103,7 +159,7 @@ public class BridgePatchClass extends PatchClass {
         il.add(new LabelNode());
         il.add(new TypeInsnNode(Opcodes.NEW, "java/io/File"));
         il.add(new InsnNode(Opcodes.DUP));
-        il.add(new LdcInsnNode("default.bte"));
+        il.add(new VarInsnNode(Opcodes.ALOAD, defaultPathSlot));
         il.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/io/File", "<init>", "(Ljava/lang/String;)V"));
         int fileSlot = methodNode.maxLocals++; // Let's reserve space for our new variable
         il.add(new VarInsnNode(Opcodes.ASTORE, fileSlot));
@@ -415,6 +471,15 @@ public class BridgePatchClass extends PatchClass {
         il.add(new LabelNode());
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
         il.add(new LdcInsnNode("// This file is auto-generated, please DO NOT edit."));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+        il.add(new LabelNode());
+        il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+
+        // Let's also manually add a line for "Gradient":
+        il.add(new LabelNode());
+        il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+        il.add(new LdcInsnNode("Gradient: true")); // Gradient is initially on in Bitwig Studio
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
         il.add(new LabelNode());
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
