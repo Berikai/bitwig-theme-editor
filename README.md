@@ -10,7 +10,7 @@ A theme editor for **Bitwig Studio**, written in Java.
 
 > This branch is for **Bitwig Theme Editor 2.x-development**, you may experience bugs and unfinished features.
 
-Download the latest version from the [releases page](https://github.com/Berikai/bitwig-theme-editor/releases/2.0.0-dev1)
+Download the latest version from the [releases page](https://github.com/Berikai/bitwig-theme-editor/releases/2.0.0-dev2)
 
 #### 🕰️ Looking for the old version? (1.x)
 <sup>[Legacy Download](https://github.com/Berikai/bitwig-theme-editor/releases/tag/1.4.3)   [Source Code](https://github.com/Berikai/bitwig-theme-editor/tree/1.4.3-stable)</sup>
@@ -52,7 +52,7 @@ You can use theme editor user interface to change colors and create your own the
 Or, you can manually create the theme file after patching Bitwig Studio:
 
 1. Run Bitwig Studio
-2. A file named `default.bte` will be created in the directory of Bitwig Studio executable
+2. A file named `default.bte` will be created in the directory of `bitwig.jar`
 3. Create a file named `theme.bte` in the same directory
 4. Add the lines of the color values you want to change, modify, and save
 5. Click on the "Dashboard Button" or resize the window to render changes
