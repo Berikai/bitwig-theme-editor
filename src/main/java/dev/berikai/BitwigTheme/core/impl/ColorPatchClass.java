@@ -8,10 +8,12 @@ import org.objectweb.asm.tree.*;
 import java.util.HashMap;
 
 public class ColorPatchClass extends PatchClass {
-    // There is two type of color classes in Bitwig Studio, pre 5.2 and 5.2+
-    // The difference is that in 5.2+ color is stored as an integer value instead of 4 different float values for RGBA
-    // pre 5.2: 0
-    // 5.2+: 1
+    // There is two type of color classes in Bitwig Studio, pre 5.2 and post 5.2
+    // The difference is that in post 5.2 color is stored as an integer value instead of 4 different float values for RGBA
+    // Pre 5.2: 0
+    // Post 5.2: 1
+    private static final int TYPE_PRE_5_2 = 0;
+    private static final int TYPE_POST_5_2 = 1;
     private int colorClassType;
 
     public ColorPatchClass(HashMap<String, ClassNode> classNodes) {
@@ -42,13 +44,13 @@ public class ColorPatchClass extends PatchClass {
 
     // Determine the type of color class by checking its fields
     private void findColorClassType() {
-        int type = 0;
+        int type = ColorPatchClass.TYPE_PRE_5_2;
         int floatFieldCount = 0;
 
         for (FieldNode field : classNode.fields) {
             // If we find an integer field, it's the new color class type
             if (field.desc.equals("I")) {
-                type = 1;
+                type = ColorPatchClass.TYPE_POST_5_2;
                 PatchClass.mappings.put("ColorClass.colorIntegerValue", field.name);
 
                 // Remove final from colorIntegerValue field if it exists, because we want to change
@@ -73,7 +75,6 @@ public class ColorPatchClass extends PatchClass {
                         floatFieldName = "alphaValue";
                         break;
                     default:
-                        floatFieldName = null;
                         this.colorClassType = type;
                         return;
                 }
@@ -108,7 +109,7 @@ public class ColorPatchClass extends PatchClass {
         }
 
         // If color class type is pre 5.2, we don't need to find convertRGBtoInt method
-        if (colorClassType == 0) return;
+        if (colorClassType == ColorPatchClass.TYPE_PRE_5_2) return;
 
         // Iterate through all the methods of class to find convertRGBtoInt method
         for (MethodNode getColorHexMethod : classNode.methods) {
@@ -123,12 +124,42 @@ public class ColorPatchClass extends PatchClass {
 
     // Find the method that returns red value
     protected void findMethodNode() {
+        // If version is Post 5.2, we don't need to patch getRed(), instead we will create our own getColorInteger()
+        if (colorClassType == ColorPatchClass.TYPE_POST_5_2) {
+            MethodNode getColorIntegerMethod = new MethodNode(Opcodes.ACC_PUBLIC, "getColorInteger", "()I", null, null);
+            InsnList il = new InsnList();
+
+            // The method will be like this:
+            // public int getColorInteger() {
+            //     return this.colorIntegerValue;
+            // }
+            il.add(new VarInsnNode(Opcodes.ALOAD, 0/*this*/));
+            il.add(new FieldInsnNode(Opcodes.GETFIELD, PatchClass.mappings.get("ColorClass"), PatchClass.mappings.get("ColorClass.colorIntegerValue"), "I"));
+            il.add(new InsnNode(Opcodes.IRETURN));
+
+            getColorIntegerMethod.instructions = il;
+            getColorIntegerMethod.maxStack = 1; // Max stack size is 1, because we only load one integer onto the stack
+            getColorIntegerMethod.maxLocals = 1; // Max locals is 1, because we only have "this" as local variable
+
+            // Add the new method to class
+            classNode.methods.add(getColorIntegerMethod);
+
+            methodNode = getColorIntegerMethod;
+
+            return; // <<<
+        }
+
+        // ^^^ We returned above so that the below code only works with pre 5.2 color class ^^^
+        // But the below code should work with both versions anyway
+        // So, I left "colorClassType == ColorPatchClass.TYPE_PRE_5_2" ternary operations in the code below for future reference,
+        // if anything breaks with above approach, just in case
+
         int methodCounter = 0;
         for (MethodNode mn : classNode.methods) {
             // Check if the method is public and returns float or int based on color class type
             // Pre 5.2: public float getRed()
             // 5.2+: public int getRed()
-            if ((mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals(colorClassType == 0 ? "()F" : "()I")) {
+            if ((mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals(colorClassType == ColorPatchClass.TYPE_PRE_5_2 ? "()F" : "()I")) {
                 // Increment method counter, the 2nd method that matches this criteria is getRed()
                 if (methodCounter != 1) {
                     methodCounter++;
@@ -147,6 +178,12 @@ public class ColorPatchClass extends PatchClass {
         // Add a new field to class to store last fetch timestamp
         // This will be used to prevent excessive file reads, *hopefully* it'll be enough to prevent performance issues
         classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC, "lastColorFetch", "J", null, null));
+
+        // Create a field to store the theme file path
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "themeFilePath", "Ljava/lang/String;", null, null));
+
+        // Create a field to disable gradient
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "disableGradient", "Z", null, null));
     }
 
     // The code we will inject here to the found method is responsible for reading "theme.bte"
@@ -155,6 +192,13 @@ public class ColorPatchClass extends PatchClass {
     public void patch() {
         // Create new fields in Color class to store color name and last fetch timestamp
         createBytecodeFields();
+
+        // We need to wrap field access to color values (red value or integer value)
+        // NOTE: This has to be called before writing new bytecode to original getRed() method
+        wrapColorFieldAccess();
+
+        // Insert bytecode to disable gradient color if the static field is set to true
+        disableGradientColor();
 
         // Create a new instruction list to write new bytecode on
         InsnList exportIl = new InsnList();
@@ -166,6 +210,77 @@ public class ColorPatchClass extends PatchClass {
 
     // --------- Bytecode writing section ---------
 
+    private void disableGradientColor() {
+        // Find gradient methods and patch them to disable gradient
+        // We will do this by searching for methods that use 360f constant and fadd, fsub opcodes
+        for (MethodNode mn : classNode.methods) {
+            // Skip if the method doesn't return color instance
+            if (!mn.desc.endsWith(")L" + PatchClass.mappings.get("ColorClass") + ";")) continue;
+
+            InsnList il = mn.instructions;
+            boolean have360 = false;
+            boolean havefadd = false;
+            boolean havefsub = false;
+
+            for (int i = 0; i < il.size(); i++) {
+                AbstractInsnNode insnNode = il.get(i);
+                // If instruction is a field access
+                if (insnNode.getOpcode() == Opcodes.LDC && ((LdcInsnNode) insnNode).cst.equals(360f)) have360 = true;
+                if (insnNode.getOpcode() == Opcodes.FADD) havefadd = true;
+                if (insnNode.getOpcode() == Opcodes.FSUB) havefsub = true;
+            }
+
+            if (have360 && havefadd && havefsub) {
+                // If this.disableGradient is true, return 'this'
+                InsnList newIl = new InsnList();
+                LabelNode labelNode_A = new LabelNode();
+                newIl.add(new FieldInsnNode(Opcodes.GETSTATIC, PatchClass.mappings.get("ColorClass"), "disableGradient", "Z"));
+                newIl.add(new JumpInsnNode(Opcodes.IFEQ, labelNode_A));
+                newIl.add(new VarInsnNode(Opcodes.ALOAD, 0/*this*/));
+                newIl.add(new InsnNode(Opcodes.ARETURN));
+                newIl.add(labelNode_A);
+                il.insert(newIl);
+            }
+        }
+    }
+
+    // We need to wrap field access to color values (red, green, blue, alpha or integer value)
+    // That's because some of the UI elements doesn't call getRed(), getGreen() etc. methods, instead they access the fields with other internal Color class methods
+    // What we are gonna do is:
+    // For Pre 5.2: We will replace all color related field accesses with calls to getRed()
+    // For Post 5.2: We will replace all color related field accesses with calls to getColorInteger(), that we create
+    private void wrapColorFieldAccess() {
+        // Now we need to replace all field accesses to redValue, greenValue, blueValue and alphaValue fields with calls to our new methods
+        for (MethodNode mn : classNode.methods) {
+            if (mn.name.equals(methodNode.name) && mn.desc.equals(methodNode.desc)) {
+                // Skip the method we are injecting code to, because we don't want to replace field accesses in there
+                continue;
+            }
+
+            InsnList il = mn.instructions;
+            for (int i = 0; i < il.size(); i++) {
+                AbstractInsnNode insnNode = il.get(i);
+                // If instruction is a field access
+                if (insnNode.getOpcode() == Opcodes.GETFIELD) {
+                    FieldInsnNode fieldInsnNode = (FieldInsnNode) insnNode;
+                    // Check if it's one of the color fields
+                    if (fieldInsnNode.owner.equals(PatchClass.mappings.get("ColorClass")) && fieldInsnNode.desc.equals(colorClassType == ColorPatchClass.TYPE_PRE_5_2 ? "F" : "I")) {
+                        String methodName = null;
+
+                        // If it's a color field, determine which method to call instead
+                        if (fieldInsnNode.name.equals(colorClassType == ColorPatchClass.TYPE_PRE_5_2 ? PatchClass.mappings.get("ColorClass.redValue") : PatchClass.mappings.get("ColorClass.colorIntegerValue"))) methodName = methodNode.name;
+
+                        if (methodName != null) {
+                            // Replace field access with method call
+                            MethodInsnNode methodInsnNode = new MethodInsnNode(Opcodes.INVOKEVIRTUAL, PatchClass.mappings.get("ColorClass"), methodName, colorClassType == ColorPatchClass.TYPE_PRE_5_2 ? "()F" : "()I", false);
+                            il.set(insnNode, methodInsnNode);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Write bytecode to be injected to method
     private void writeBytecode(InsnList il) {
         // We don't need mArgIndex as in BridgePatchClass since this method doesn't have any arguments
@@ -175,7 +290,7 @@ public class ColorPatchClass extends PatchClass {
 
         // Let's begin with checking lastColorFetch timestamp
         // If lastColorFetch is 0, it's the first time we are fetching color, so we need to read the file
-        // If currentTimeMillis - lastColorFetch <= 2000L, skip file read
+        // If currentTimeMillis - lastColorFetch <= 3000L, skip file read
         // Here is the corresponding bytecode:
         //        aload this
         //        getfield YhQ.colorName Ljava/lang/String;
@@ -232,7 +347,7 @@ public class ColorPatchClass extends PatchClass {
         il.add(new InsnNode(Opcodes.DUP));
         il.add(new TypeInsnNode(Opcodes.NEW, "java/io/FileReader"));
         il.add(new InsnNode(Opcodes.DUP));
-        il.add(new LdcInsnNode("theme.bte"));
+        il.add(new FieldInsnNode(Opcodes.GETSTATIC, PatchClass.mappings.get("ColorClass"), "themeFilePath", "Ljava/lang/String;"));
         il.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/io/FileReader", "<init>", "(Ljava/lang/String;)V"));
         il.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/io/BufferedReader", "<init>", "(Ljava/io/Reader;)V"));
         int brSlot = methodNode.maxLocals++;
@@ -265,6 +380,52 @@ public class ColorPatchClass extends PatchClass {
         int lineSlot = methodNode.maxLocals++;
         il.add(new VarInsnNode(Opcodes.ASTORE, lineSlot));
         il.add(new JumpInsnNode(Opcodes.IFNULL, labelNode_AN));
+
+        // Let's check the gradient line
+        // Here is the corresponding bytecode:
+        //    G:
+        //        line 706
+        //        aload string2
+        //        ldc "Gradient: false"
+        //        invokevirtual java/lang/String.startsWith (Ljava/lang/String;)Z
+        //        ifeq I
+        //    H:
+        //        line 707
+        //        iconst_1
+        //        putstatic gAg.disableGradient Z
+        //        goto K
+        //    I:
+        //        line 708
+        //        aload string2
+        //        ldc "Gradient: true"
+        //        invokevirtual java/lang/String.startsWith (Ljava/lang/String;)Z
+        //        ifeq K
+        //    J:
+        //        line 709
+        //        iconst_0
+        //        putstatic gAg.disableGradient Z
+        //    K:
+        LabelNode labelNode_I = new LabelNode();
+        LabelNode labelNode_K = new LabelNode();
+
+        il.add(new LabelNode());
+        il.add(new VarInsnNode(Opcodes.ALOAD, lineSlot));
+        il.add(new LdcInsnNode("Gradient: false"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "startsWith", "(Ljava/lang/String;)Z"));
+        il.add(new JumpInsnNode(Opcodes.IFEQ, labelNode_I));
+        il.add(new LabelNode());
+        il.add(new InsnNode(Opcodes.ICONST_1));
+        il.add(new FieldInsnNode(Opcodes.PUTSTATIC, PatchClass.mappings.get("ColorClass"), "disableGradient", "Z"));
+        il.add(new JumpInsnNode(Opcodes.GOTO, labelNode_K));
+        il.add(labelNode_I);
+        il.add(new VarInsnNode(Opcodes.ALOAD, lineSlot));
+        il.add(new LdcInsnNode("Gradient: true"));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "startsWith", "(Ljava/lang/String;)Z"));
+        il.add(new JumpInsnNode(Opcodes.IFEQ, labelNode_K));
+        il.add(new LabelNode());
+        il.add(new InsnNode(Opcodes.ICONST_0));
+        il.add(new FieldInsnNode(Opcodes.PUTSTATIC, PatchClass.mappings.get("ColorClass"), "disableGradient", "Z"));
+        il.add(labelNode_K);
 
         // We have to seperate the line with ": ", in order to get the color name and hex value
         // Here is the corresponding bytecode:
@@ -1021,7 +1182,7 @@ public class ColorPatchClass extends PatchClass {
 
         il.add(labelNode_AH);
         int f_i_10Slot = methodNode.maxLocals++;
-        if(colorClassType == 1/* 5.2+ */) {
+        if(colorClassType == ColorPatchClass.TYPE_POST_5_2) {
             il.add(new VarInsnNode(Opcodes.ALOAD, 0));
             il.add(new FieldInsnNode(Opcodes.GETFIELD, PatchClass.mappings.get("ColorClass"), PatchClass.mappings.get("ColorClass.colorIntegerValue"), "I"));
             il.add(new IntInsnNode(Opcodes.BIPUSH, 16));
@@ -1029,11 +1190,11 @@ public class ColorPatchClass extends PatchClass {
             il.add(new IntInsnNode(Opcodes.SIPUSH, 255));
             il.add(new InsnNode(Opcodes.IAND));
 
-        } else /* Pre 5.2+ */ {
+        } else /* Pre 5.2 */ {
             il.add(new VarInsnNode(Opcodes.ALOAD, 0));
             il.add(new FieldInsnNode(Opcodes.GETFIELD, PatchClass.mappings.get("ColorClass"), PatchClass.mappings.get("ColorClass.redValue"), "F"));
         }
-        il.add(new VarInsnNode(colorClassType == 1 ? Opcodes.ISTORE : Opcodes.FSTORE, f_i_10Slot));
+        il.add(new VarInsnNode(colorClassType == ColorPatchClass.TYPE_POST_5_2 ? Opcodes.ISTORE : Opcodes.FSTORE, f_i_10Slot));
 
         // We need to close some try/catch blocks first before continuing
         // Here is the corresponding bytecode:
@@ -1052,8 +1213,8 @@ public class ColorPatchClass extends PatchClass {
         il.add(new VarInsnNode(Opcodes.ALOAD, brSlot));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedReader", "close", "()V"));
         il.add(tryEnd_A);
-        il.add(new VarInsnNode(colorClassType == 1 ? Opcodes.ILOAD : Opcodes.FLOAD, f_i_10Slot));
-        il.add(new InsnNode(colorClassType == 1 ? Opcodes.IRETURN : Opcodes.FRETURN));
+        il.add(new VarInsnNode(colorClassType == ColorPatchClass.TYPE_POST_5_2 ? Opcodes.ILOAD : Opcodes.FLOAD, f_i_10Slot));
+        il.add(new InsnNode(colorClassType == ColorPatchClass.TYPE_POST_5_2 ? Opcodes.IRETURN : Opcodes.FRETURN));
 
         // "this.mJV = color = gPj.jxy(a, r, g, b);"
         // Here is the corresponding bytecode:
@@ -1082,7 +1243,7 @@ public class ColorPatchClass extends PatchClass {
         //        goto AT
 
         il.add(tryStart_C); il.add(tryStart_D);
-        if (colorClassType == 1/* 5.2+ */) {
+        if (colorClassType == ColorPatchClass.TYPE_POST_5_2) {
             il.add(new VarInsnNode(Opcodes.ALOAD, 0));
             il.add(new VarInsnNode(Opcodes.FLOAD, aSlot));
             il.add(new VarInsnNode(Opcodes.FLOAD, rSlot));
