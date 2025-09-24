@@ -1,5 +1,6 @@
 package dev.berikai.BitwigTheme.core.impl;
 
+import dev.berikai.BitwigTheme.Main;
 import dev.berikai.BitwigTheme.core.PatchClass;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -463,7 +464,7 @@ public class BridgePatchClass extends PatchClass {
 
         il.add(new LabelNode());
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
-        il.add(new LdcInsnNode("// Default color values for Bitwig Studio"));
+        il.add(new LdcInsnNode("// Default color values for Bitwig Studio " + Main.bitwigVersion));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
         il.add(new LabelNode());
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));

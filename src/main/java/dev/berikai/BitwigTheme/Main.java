@@ -3,6 +3,7 @@ package dev.berikai.BitwigTheme;
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMTMaterialDarkerIJTheme;
 import dev.berikai.BitwigTheme.UI.MainUI;
 import dev.berikai.BitwigTheme.asm.JarNode;
+import dev.berikai.BitwigTheme.core.BitwigClass;
 import dev.berikai.BitwigTheme.core.PatchClass;
 import dev.berikai.BitwigTheme.core.IntegrityClass;
 import dev.berikai.BitwigTheme.core.impl.BridgePatchClass;
@@ -18,6 +19,7 @@ import java.util.zip.ZipException;
 
 public class Main {
     public static String version; // Project version
+    public static String bitwigVersion; // Bitwig Studio version, obtained from BitwigClass
     public static JarNode jar; // ASM-tree JarNode object for bitwig.jar
 
     private static void printUsage() throws URISyntaxException {
@@ -106,6 +108,16 @@ public class Main {
 
     public static int applyPatch(String bitwig_path, JarNode jar) throws IOException {
         System.out.println("Patching started...");
+
+        BitwigClass bwClass = new BitwigClass(jar.getNodes());
+        if (!bwClass.isBitwigJAR()) {
+            System.out.println("ERROR: Selected JAR file is not Bitwig Studio JAR.");
+            System.out.println();
+            return 0;
+        }
+
+        bitwigVersion = bwClass.getVersion();
+        System.out.println("Detected Bitwig Studio version: " + bitwigVersion);
 
         // Initialize class patchers
         PatchClass colorClass = new ColorPatchClass(jar.getNodes());
