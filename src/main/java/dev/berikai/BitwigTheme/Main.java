@@ -87,7 +87,7 @@ public class Main {
             // Brief usage instruction
             System.out.println("Patch successful!");
             System.out.println();
-            System.out.println("1. Run Bitwig Studio");
+            System.out.println("1. Run Bitwig Studio (run as admin/root if step 2 fails)");
             System.out.println("2. A file named 'default.bte' will be created in the directory of bitwig.jar");
             System.out.println("3. Create a file named 'theme.bte' in the same directory");
             System.out.println("4. Add the lines of the color values you want to change, modify, and save");
