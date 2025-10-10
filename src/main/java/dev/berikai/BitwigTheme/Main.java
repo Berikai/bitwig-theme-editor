@@ -58,7 +58,7 @@ public class Main {
 
         // Print usage, if argument count isn't 1
         if (args.length != 1) {
-            System.out.println("ERROR: Incorrect number of arguments.");
+            System.out.println("ERROR: Wrong usage!");
             System.out.println();
             printUsage();
             return;
@@ -106,14 +106,14 @@ public class Main {
         System.out.println();
     }
 
-    public static int applyPatch(String bitwig_path, JarNode jar) throws IOException {
+    public static int applyPatch(String bitwig_path, JarNode jar) {
         System.out.println("Patching started...");
 
         BitwigClass bwClass = new BitwigClass(jar.getNodes());
         if (!bwClass.isBitwigJAR()) {
             System.out.println("ERROR: Selected JAR file is not Bitwig Studio JAR.");
             System.out.println();
-            return 0;
+            return 3;
         }
 
         bitwigVersion = bwClass.getVersion();
@@ -134,7 +134,7 @@ public class Main {
         }
 
         if (alreadyPatched) {
-            System.out.println("WARNING: Your bitwig.jar is already patched! Aborting...");
+            System.out.println("WARNING: Your bitwig.jar is already patched! Skipping...");
             System.out.println();
             return 0;
         }
@@ -163,7 +163,7 @@ public class Main {
             System.out.println("ERROR: Failed to patch jar. Couldn't write to JAR file.");
             System.out.println();
             e.printStackTrace();
-            return 0;
+            return 2;
         }
     }
 }
