@@ -4,107 +4,55 @@ import dev.berikai.BitwigTheme.Main;
 import dev.berikai.BitwigTheme.asm.JarNode;
 
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import java.awt.*;
 import java.io.File;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.zip.ZipException;
+import java.util.Scanner;
+
+import static dev.berikai.BitwigTheme.Main.applyPatch;
 
 public class MainUI extends JFrame {
-    public MainUI() throws URISyntaxException {
-        // dev.berikai.BitwigTheme.UI is still in development, all existing UI codes are deprecated but kept for future reference
-        // For now, please use command line version
-        String jarName = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()).getName();
+    public MainUI() {
+        loadConfig();
+    }
 
-        JOptionPane.showMessageDialog(null,
-                "GUI is still in development. For now, please use command line with jar path.\n"
-                        + "java -jar " + jarName + " <bitwig-jar-path>\n\n",
-                "ATTENTION!",
-                JOptionPane.INFORMATION_MESSAGE);
-        System.exit(0);
-
-        // --------------------------------
-
-        setTitle("Select Operation");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(250, 75);
-        setResizable(false);
-        setLayout(new GridLayout(1, 2));
-
-        JarChooser jarChooser = new JarChooser();
-
-        JarNode jar;
-
+    public static void updateConfig(String bitwigPath) {
         try {
-            jar = new JarNode(jarChooser.getSelectedFile().getPath());
-        } catch (ZipException e) {
-            String errorMessage = "Selected file " + jarChooser.getSelectedFile().getPath() + " is either invalid JAR file or corrupted.";
-            JOptionPane.showMessageDialog(null,
-                    errorMessage,
-                    "Error!",
-                    JOptionPane.INFORMATION_MESSAGE);
-            throw new RuntimeException(errorMessage);
+            File configFile = new File("bte_config.txt");
+            if (!configFile.exists()) {
+                configFile.createNewFile();
+            }
+            try (java.io.FileWriter writer = new java.io.FileWriter(configFile)) {
+                writer.write("# Bitwig Theme Editor configuration file\n" + "bitwig_path=" + bitwigPath + "\n");
+            }
         } catch (Exception e) {
-            String errorMessage = "JAR File " + jarChooser.getSelectedFile().getPath() + " does not exist or could not be accessed. Try to run as admin/root.";
-            JOptionPane.showMessageDialog(null,
-                    errorMessage,
-                    "Error!",
-                    JOptionPane.INFORMATION_MESSAGE);
-            throw new RuntimeException(errorMessage);
+            e.printStackTrace();
+        }
+    }
+
+    public static void loadConfig() {
+        File configFile = new File("bte_config.txt");
+        if (configFile.exists()) {
+            try (Scanner scanner = new Scanner(configFile)) {
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    // Process the line as needed
+                    String[] parts = line.split("=");
+                    if (parts.length == 2) {
+                        String key = parts[0].trim();
+                        String value = parts[1].trim();
+                        // Store or use the key-value pair as needed
+                        if(key.equals("bitwig_path")) {
+                            Main.jar = new JarNode(value);
+                            final int result = applyPatch(value, Main.jar);
+                            new Editor(value, result);
+                            return;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 7));
-
-        JButton change = new JButton("Change Theme");
-        change.setPreferredSize(new Dimension(225, 26));
-        change.addActionListener(e -> {
-            ThemeChooser themeChooser = new ThemeChooser("Open");
-            try {
-                setTitle("Applying the theme, please wait...");
-                final int result = Main.applyPatch(jar.getPath(), jar);
-                if (result == 1) {
-                    JOptionPane.showMessageDialog(null,
-                            "Theme successfully applied from: " + themeChooser.getSelectedFile().getPath(),
-                            "Successful!",
-                            JOptionPane.INFORMATION_MESSAGE);
-                } else if (result == 0) {
-                    JOptionPane.showMessageDialog(null,
-                            "Couldn't write to JAR file " + jarChooser.getSelectedFile().getPath() + ". Possibly permission issue. Try to run as admin/root.",
-                            "Error!",
-                            JOptionPane.INFORMATION_MESSAGE);
-                }
-                setTitle("Select Operation");
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
-
-        JButton export = new JButton("Export Current Theme");
-        export.setPreferredSize(new Dimension(225, 26));
-        export.addActionListener(e -> {
-            ThemeChooser themeChooser = new ThemeChooser("Save");
-            try {
-                String path = "";
-                try {
-                    path = themeChooser.getSelectedFile().getPath() + (themeChooser.getSelectedFile().getPath().contains(".") ? "" : "." + ((FileNameExtensionFilter) themeChooser.getFileFilter()).getExtensions()[0].toLowerCase());
-                } catch (Exception ignored) {
-                    JOptionPane.showMessageDialog(null, "Please use YAML or JSON file format while exporting current theme!", "ERROR!", JOptionPane.ERROR_MESSAGE);
-                    System.exit(1);
-                }
-                //Main.exportCurrentTheme(path, jar);
-                JOptionPane.showMessageDialog(null, "Theme successfully exported to: " + path, "Successful!", JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        });
-
-        panel.add(change);
-        panel.add(export);
-
-        add(panel);
-        pack();
-        setLocationRelativeTo(null);
-        setVisible(true);
+        new Welcome();
     }
 }
