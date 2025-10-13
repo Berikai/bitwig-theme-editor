@@ -20,7 +20,7 @@ public class Welcome extends JFrame {
         setContentPane(mainPanel);
         setTitle("Bitwig Theme Editor " + Main.version);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(550, 190);
+        setSize(550, 220);
         setLocationRelativeTo(null); // Center the window
         setResizable(false);
 
