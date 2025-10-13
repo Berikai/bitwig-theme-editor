@@ -34,6 +34,12 @@ public class Editor extends JFrame {
     private JLabel ethereumLabel;
     private JTextField textField1;
     private JCheckBox alwaysOnTopCheckbox;
+    private JCheckBox minimizeThemeOnExportCheckBox;
+    private JList<ColorPanel> list2;
+    private JTextField textField2;
+    private JCheckBox compatibilityForOldThemesCheckBox;
+    private JLabel colorsSizeLabel;
+    private JLabel modifiedSizeLabel;
 
     private int hoveredIndex = -1;
 
@@ -44,7 +50,7 @@ public class Editor extends JFrame {
         this.bitwig_path = bitwig_path;
 
         handlePatchResult(result);
-        checkThemeFile();
+        if (!checkThemeFile()) return;
 
         initializeMenuBar();
 
@@ -52,7 +58,7 @@ public class Editor extends JFrame {
         setTitle("Bitwig Theme Editor " + Main.version);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(430, 500);
-        setMinimumSize(new Dimension(400, 300));
+        setMinimumSize(new Dimension(430, 360));
         setLocationRelativeTo(null); // Center the window
         setAlwaysOnTop(true);
         //setResizable(false);
@@ -113,23 +119,23 @@ public class Editor extends JFrame {
         JMenu helpMenu = new JMenu("Help");
         JMenuItem about = new JMenuItem("About");
         JMenuItem github = new JMenuItem("Github");
-        JMenuItem donate = new JMenuItem("Donate ETH");
         helpMenu.add(about);
         helpMenu.addSeparator();
         helpMenu.add(github);
-        helpMenu.add(donate);
         menuBar.add(helpMenu);
 
         about.addActionListener(e -> showAboutDialog());
         github.addActionListener(e -> openWebpage("https://github.com/berikai/bitwig-theme-editor"));
-        donate.addActionListener(e -> showCryptoDialog());
 
         resetToStock.addActionListener(e -> {
             int response = JOptionPane.showConfirmDialog(this, "Are you sure you want to reset all changes to default?", "Confirm Reset", JOptionPane.YES_NO_OPTION);
             if (response == JOptionPane.YES_OPTION) {
                 loadDefaultThemeColors();
                 System.out.println("-> Reset to default");
+                boolean minimize = minimizeThemeOnExportCheckBox.isSelected();
+                minimizeThemeOnExportCheckBox.setSelected(false); // Temporarily disable minimize to export all colors, needed to reset to stock values
                 saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                minimizeThemeOnExportCheckBox.setSelected(minimize);
             }
         });
 
@@ -143,12 +149,15 @@ public class Editor extends JFrame {
         });
 
         importTheme.addActionListener(e -> {
+            int response = JOptionPane.showConfirmDialog(this, "Importing a theme will overwrite your current changes.\nAll unsaved changes will be lost. Are you sure you want to continue?", "Confirm Import", JOptionPane.YES_NO_OPTION);
+            if (response != JOptionPane.YES_OPTION) return;
+
             ThemeChooser themeChooser = new ThemeChooser("Open");
             if (themeChooser.getSelectedFile() != null) {
                 loadDefaultThemeColors();
                 if (themeChooser.getSelectedFile().getPath().endsWith(".json")) {
-                    JOptionPane.showMessageDialog(this, "Importing from JSON files is deprecated and may cause issues. Please use .bte files instead.", "Warning", JOptionPane.WARNING_MESSAGE);
-                    //TODO: loadThemeColorsFromJSON(themeChooser.getSelectedFile().getPath());
+                    JOptionPane.showMessageDialog(this, "Please note that JSON themes are deprecated, but importing them is still supported. Please export your theme afterwards to upgrade it to new format.", "Warning", JOptionPane.WARNING_MESSAGE);
+                    loadThemeColorsFromJSON(themeChooser.getSelectedFile().getPath());
                 } else {
                     loadThemeColors(themeChooser.getSelectedFile().getPath());
                 }
@@ -169,89 +178,93 @@ public class Editor extends JFrame {
     }
 
     private void initializeUI() {
-        DefaultListModel<ColorPanel> listModel = new DefaultListModel<>();
-        list1.setModel(listModel);
+        for (JList<ColorPanel> list : new JList[]{list1, list2}) {
+            DefaultListModel<ColorPanel> listModel = new DefaultListModel<>();
+            list.setModel(listModel);
 
-        list1.setCellRenderer((list, value, index, isSelected, cellHasFocus) -> {
-            if (index == hoveredIndex) {
-                value.setBackground(Color.decode("#404040")); // hover color
-                if (isSelected) {
-                    value.setBackground(Color.decode("#506550")); // hover + selected color
+            list.setCellRenderer((_list, value, index, isSelected, cellHasFocus) -> {
+                if (index == hoveredIndex) {
+                    value.setBackground(Color.decode("#404040")); // hover color
+                    if (isSelected) {
+                        value.setBackground(Color.decode("#506550")); // hover + selected color
+                    }
+                } else if (isSelected) {
+                    value.setBackground(Color.decode("#405040")); // selected color
+                } else {
+                    value.setBackground(Color.decode("#303030")); // default color
                 }
-            } else if (isSelected) {
-                value.setBackground(Color.decode("#405040")); // selected color
-            } else {
-                value.setBackground(Color.decode("#303030")); // default color
-            }
-            return value;
-        });
+                return value;
+            });
 
-        list1.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        list1.addMouseMotionListener(new MouseMotionAdapter() {
-            public void mouseMoved(MouseEvent e) {
-                int index = list1.locationToIndex(e.getPoint());
-                if (index != hoveredIndex) {
-                    hoveredIndex = index;
-                    list1.repaint();
-                }
-            }
-        });
-        list1.addMouseListener(new MouseAdapter() {
-            public void mouseExited(MouseEvent e) {
-                if (hoveredIndex != -1) {
-                    hoveredIndex = -1;
-                    list1.repaint();
-                }
-            }
-
-            public void mouseClicked(MouseEvent mouseEvent) {
-                int index = list1.locationToIndex(mouseEvent.getPoint());
-                if (index != -1 && mouseEvent.getClickCount() == 1) {
-                    ColorPanel item = listModel.getElementAt(index);
-
-                    Color newColor = JColorChooser.showDialog(item, "Choose Color", ColorPanel.decodeRGBA(item.getValue()));
-                    if (newColor != null) {
-                        item.getColorDisplayPanel().setBackground(newColor);
-                        item.setValue(format("#%02x%02x%02x%02x", newColor.getRed(), newColor.getGreen(), newColor.getBlue(), newColor.getAlpha()));
-                        item.setToolTipText(item.getKey() + ": " + item.getValue());
-                        list1.repaint();
-                        saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+            list.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            list.addMouseMotionListener(new MouseMotionAdapter() {
+                public void mouseMoved(MouseEvent e) {
+                    int index = list.locationToIndex(e.getPoint());
+                    if (index != hoveredIndex) {
+                        hoveredIndex = index;
+                        list.repaint();
                     }
                 }
-            }
-        });
+            });
+            list.addMouseListener(new MouseAdapter() {
+                public void mouseExited(MouseEvent e) {
+                    if (hoveredIndex != -1) {
+                        hoveredIndex = -1;
+                        list.repaint();
+                    }
+                }
+
+                public void mouseClicked(MouseEvent mouseEvent) {
+                    int index = list.locationToIndex(mouseEvent.getPoint());
+                    if (index != -1 && mouseEvent.getClickCount() == 1) {
+                        ColorPanel item = listModel.getElementAt(index);
+
+                        Color newColor = JColorChooser.showDialog(item, "Choose Color", ColorPanel.decodeRGBA(item.getValue()));
+                        if (newColor != null) {
+                            item.getColorDisplayPanel().setBackground(newColor);
+                            item.setValue(format("#%02x%02x%02x%02x", newColor.getRed(), newColor.getGreen(), newColor.getBlue(), newColor.getAlpha()));
+                            updateModifiedList(item);
+                            item.setToolTipText(item.getKey() + ": " + item.getValue());
+                            list.repaint();
+                            saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                        }
+                    }
+                }
+            });
+
+            JTextField textField = (list == list1) ? textField1 : textField2;
+            textField.getDocument().addDocumentListener(new DocumentListener() {
+                private void search() {
+                    String searchText = textField.getText().toLowerCase();
+                    for (int i = 0; i < listModel.size(); i++) {
+                        ColorPanel item = listModel.getElementAt(i);
+                        if (item.getKey().toLowerCase().contains(searchText)) {
+                            list.setSelectedIndex(i);
+                            list.ensureIndexIsVisible(i);
+                            return;
+                        }
+                    }
+                    list.clearSelection();
+                }
+
+                public void insertUpdate(DocumentEvent e) {
+                    search();
+                }
+
+                public void removeUpdate(DocumentEvent e) {
+                    search();
+                }
+
+                public void changedUpdate(DocumentEvent e) {
+                    search();
+                }
+            });
+        }
 
         disableGradientCheckBox.addActionListener(e -> {
             boolean isSelected = disableGradientCheckBox.isSelected();
             System.out.println("-> Disable gradient: " + isSelected);
             saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
-        });
-
-        textField1.getDocument().addDocumentListener(new DocumentListener() {
-            private void search() {
-                String searchText = textField1.getText().toLowerCase();
-                for (int i = 0; i < listModel.size(); i++) {
-                    ColorPanel item = listModel.getElementAt(i);
-                    if (item.getKey().toLowerCase().contains(searchText)) {
-                        list1.setSelectedIndex(i);
-                        list1.ensureIndexIsVisible(i);
-                        return;
-                    }
-                }
-                list1.clearSelection();
-            }
-
-            public void insertUpdate(DocumentEvent e) {
-                search();
-            }
-
-            public void removeUpdate(DocumentEvent e) {
-                search();
-            }
-
-            public void changedUpdate(DocumentEvent e) {
-                search();
-            }
         });
 
         alwaysOnTopCheckbox.addActionListener(e -> {
@@ -285,12 +298,13 @@ public class Editor extends JFrame {
         }
     }
 
-    private void checkThemeFile() {
+    private boolean checkThemeFile() {
         // Check if theme file named "default.bte" exists in the same directory as bitwig.jar
         // If not, warn the user that the theme file is missing and create one with default values
         // And wait till the file is created
 
         String themeFilePath = bitwig_path.replace("bitwig.jar", "default.bte");
+        System.out.println("Default theme path: " + themeFilePath);
         File themeFile = new File(themeFilePath);
         boolean outOfLoop = true;
         while (!themeFile.exists()) {
@@ -300,12 +314,15 @@ public class Editor extends JFrame {
                 setVisible(false);
                 Welcome.selectJar(this);
                 dispose();
+                return false;
             }
         }
 
         if (!outOfLoop) {
             JOptionPane.showMessageDialog(this, "'default.bte' file detected! You can now edit the theme colors.", "File Detected", JOptionPane.INFORMATION_MESSAGE);
         }
+
+        return true;
     }
 
     private void loadDefaultThemeColors() {
@@ -318,7 +335,9 @@ public class Editor extends JFrame {
         }
 
         DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
+        DefaultListModel<ColorPanel> listModel2 = (DefaultListModel<ColorPanel>) list2.getModel();
         listModel.clear();
+        listModel2.clear();
 
         // Read the theme file line by line, separate lines with ": " to get key and value
         // For each line, create a ColorPanel item and add it to the list1
@@ -371,6 +390,9 @@ public class Editor extends JFrame {
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
+
+        colorsSizeLabel.setText("Colors: " + listModel.size());
+        modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
     }
 
     private void loadThemeColors(String themeFilePath) {
@@ -400,9 +422,11 @@ public class Editor extends JFrame {
                     for (Object _panel : listModel.toArray()) {
                         if (!(_panel instanceof ColorPanel)) continue;
                         ColorPanel panel = (ColorPanel) _panel;
-                        if (panel.getKey().equals(parts[0].trim())) {
+                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(parts[0].trim()) : parts[0].trim();
+                        if (panel.getKey().equals(colorKey)) {
                             try {
                                 panel.setValue(parts[1].trim());
+                                updateModifiedList(panel);
                             } catch (Exception e) {
                                 System.out.println("-> Skipping invalid line in theme file: " + line);
                                 continue;
@@ -417,6 +441,86 @@ public class Editor extends JFrame {
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void loadThemeColorsFromJSON(String themeFilePath) {
+        // Similar to loadDefaultThemeColors but loads from a user-selected theme file
+        File themeFile = new File(themeFilePath);
+        if (!themeFile.exists()) {
+            // Create a new theme file with default values
+            try {
+                themeFile.createNewFile();
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "Failed to create new theme file!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+
+        DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
+
+        try (Scanner scanner = new Scanner(themeFile)) {
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine()
+                        .trim() // Eliminate JSON indentation spaces
+                        .replace("\",", "") // Eliminate trailing commas
+                        .replace("\"", ""); // Eliminate quotes
+                String[] parts = line.split(": ");
+                if (parts.length == 2) {
+                    if (parts[0].equals("Gradient")) {
+                        disableGradientCheckBox.setSelected(parts[1].trim().equals("false"));
+                        continue;
+                    }
+                    for (Object _panel : listModel.toArray()) {
+                        if (!(_panel instanceof ColorPanel)) continue;
+                        ColorPanel panel = (ColorPanel) _panel;
+                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(parts[0].trim()) : parts[0].trim();
+                        if (panel.getKey().equals(colorKey)) {
+                            try {
+                                panel.setValue(parts[1].trim());
+                                updateModifiedList(panel);
+                            } catch (Exception e) {
+                                System.out.println("-> Skipping invalid line in theme file: " + line);
+                                continue;
+                            }
+                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(parts[1].trim()));
+                            panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
+                        }
+                    }
+                    list1.repaint();
+                }
+            }
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void updateModifiedList(ColorPanel panel) {
+        DefaultListModel<ColorPanel> listModel2 = (DefaultListModel<ColorPanel>) list2.getModel();
+        if (!panel.isModified()) {
+            // If the color is not modified, remove it from modified list
+            for (int i = 0; i < listModel2.size(); i++) {
+                ColorPanel item = listModel2.getElementAt(i);
+                if (item.getKey().equals(panel.getKey())) {
+                    listModel2.removeElementAt(i);
+                    break;
+                }
+            }
+        } else {
+            // If the color is modified, add it to modified list if not already present
+            boolean found = false;
+            for (int i = 0; i < listModel2.size(); i++) {
+                ColorPanel item = listModel2.getElementAt(i);
+                if (item.getKey().equals(panel.getKey())) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                listModel2.addElement(panel);
+            }
+        }
+        modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
+        list2.repaint();
     }
 
     private void saveThemeColors(String themeFilePath) {
@@ -435,10 +539,11 @@ public class Editor extends JFrame {
 
         try (PrintWriter writer = new PrintWriter(themeFile)) {
             DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
+            DefaultListModel<ColorPanel> listModel2 = (DefaultListModel<ColorPanel>) list2.getModel();
             writer.println("// Theme file generated by Bitwig Theme Editor " + Main.version);
             writer.println("// Bitwig Studio version: " + Main.bitwigVersion);
             writer.println("Gradient: " + (!disableGradientCheckBox.isSelected()));
-            for (Object _panel : listModel.toArray()) {
+            for (Object _panel : minimizeThemeOnExportCheckBox.isSelected() ? listModel2.toArray() : listModel.toArray()) {
                 if (!(_panel instanceof ColorPanel)) continue;
                 ColorPanel panel = (ColorPanel) _panel;
                 writer.println(panel.getKey() + ": " + panel.getValue());
@@ -446,6 +551,32 @@ public class Editor extends JFrame {
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Failed to save theme file!", "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private String matchColorNameToBitwig6(String oldName) {
+        // Map old color names to new ones for Bitwig 6.0 compatibility
+        switch (oldName) {
+            case "On":
+                return "Accent (default)";
+            case "Hitech on":
+                return "Accent (hitech)";
+            case "Hole (dark)":
+                return "Grey 0";
+            case "Dark Timeline Background":
+                return "Grey 1";
+            case "Light Timeline Background":
+                return "Grey 2";
+            case "Hole (medium)": // and Hole (light)
+                return "Grey 3";
+            case "Panel body": // and Window Background
+                return "Grey 5";
+            case "Selected Panel body": // and Window Background
+                return "Grey 6";
+            // TODO: More to add...
+            default:
+                return oldName;
+        }
+
     }
 
     private void showAboutDialog() {
@@ -458,7 +589,11 @@ public class Editor extends JFrame {
                         "<p><b>Author:</b> Berikai</p>" +
                         "<p><b>GitHub:</b> <a href='https://github.com/berikai/bitwig-theme-editor'>https://github.com/berikai/bitwig-theme-editor</a></p>" +
                         "<br>" +
-                        "<p>A cross-platform theme editor for Bitwig Studio, written educational purpose in mind!</p>" +
+                        "<p>A cross-platform theme editor for Bitwig Studio!</p>" +
+                        "<br>" +
+                        "<p>This is an unofficial free open source 3rd party tool, made with educational purposes only.</p>" +
+                        "<p>Author is not responsible for any damage caused by using this tool.</p>" +
+                        "<p>Use at your own risk.</p>" +
                         "</div></html>",
                 version
         );
@@ -521,55 +656,134 @@ public class Editor extends JFrame {
      */
     private void $$$setupUI$$$() {
         mainPanel = new JPanel();
-        mainPanel.setLayout(new GridLayoutManager(2, 1, new Insets(1, 10, 10, 10), -1, -1));
+        mainPanel.setLayout(new GridLayoutManager(3, 1, new Insets(1, 10, 10, 10), -1, -1));
         tabbedPane1 = new JTabbedPane();
         mainPanel.add(tabbedPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, new Dimension(200, 200), null, 0, false));
         final JPanel panel1 = new JPanel();
-        panel1.setLayout(new GridLayoutManager(2, 3, new Insets(5, 5, 5, 5), -1, -1));
+        panel1.setLayout(new GridLayoutManager(3, 1, new Insets(5, 5, 5, 5), -1, -1));
         tabbedPane1.addTab("Colors", panel1);
         final JScrollPane scrollPane1 = new JScrollPane();
-        panel1.add(scrollPane1, new GridConstraints(1, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
+        panel1.add(scrollPane1, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         list1 = new JList();
         list1.setLayoutOrientation(0);
         final DefaultListModel defaultListModel1 = new DefaultListModel();
         list1.setModel(defaultListModel1);
         scrollPane1.setViewportView(list1);
         textField1 = new JTextField();
-        panel1.add(textField1, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        panel1.add(textField1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         final JPanel panel2 = new JPanel();
-        panel2.setLayout(new GridLayoutManager(3, 2, new Insets(10, 10, 10, 10), -1, -1));
-        tabbedPane1.addTab("Options", panel2);
+        panel2.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        panel1.add(panel2, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        colorsSizeLabel = new JLabel();
+        Font colorsSizeLabelFont = this.$$$getFont$$$(null, -1, 9, colorsSizeLabel.getFont());
+        if (colorsSizeLabelFont != null) colorsSizeLabel.setFont(colorsSizeLabelFont);
+        colorsSizeLabel.setText("Colors: 0");
+        panel2.add(colorsSizeLabel, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final Spacer spacer1 = new Spacer();
+        panel2.add(spacer1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final JPanel panel3 = new JPanel();
+        panel3.setLayout(new GridLayoutManager(3, 1, new Insets(5, 5, 5, 5), -1, -1));
+        tabbedPane1.addTab("Modified", panel3);
+        final JScrollPane scrollPane2 = new JScrollPane();
+        panel3.add(scrollPane2, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
+        list2 = new JList();
+        list2.setLayoutOrientation(0);
+        final DefaultListModel defaultListModel2 = new DefaultListModel();
+        list2.setModel(defaultListModel2);
+        scrollPane2.setViewportView(list2);
+        textField2 = new JTextField();
+        panel3.add(textField2, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        final JPanel panel4 = new JPanel();
+        panel4.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        panel3.add(panel4, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        modifiedSizeLabel = new JLabel();
+        Font modifiedSizeLabelFont = this.$$$getFont$$$(null, -1, 9, modifiedSizeLabel.getFont());
+        if (modifiedSizeLabelFont != null) modifiedSizeLabel.setFont(modifiedSizeLabelFont);
+        modifiedSizeLabel.setText("Modified Colors: 0");
+        panel4.add(modifiedSizeLabel, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final Spacer spacer2 = new Spacer();
+        panel4.add(spacer2, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final JPanel panel5 = new JPanel();
+        panel5.setLayout(new GridLayoutManager(10, 2, new Insets(10, 10, 10, 10), -1, -1));
+        tabbedPane1.addTab("Options", panel5);
         disableGradientCheckBox = new JCheckBox();
         disableGradientCheckBox.setText("Disable gradient");
-        panel2.add(disableGradientCheckBox, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final Spacer spacer1 = new Spacer();
-        panel2.add(spacer1, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
-        final Spacer spacer2 = new Spacer();
-        panel2.add(spacer2, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
+        panel5.add(disableGradientCheckBox, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final Spacer spacer3 = new Spacer();
+        panel5.add(spacer3, new GridConstraints(9, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         alwaysOnTopCheckbox = new JCheckBox();
         alwaysOnTopCheckbox.setSelected(true);
         alwaysOnTopCheckbox.setText("Set always on top");
-        panel2.add(alwaysOnTopCheckbox, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final JPanel panel3 = new JPanel();
-        panel3.setLayout(new GridLayoutManager(1, 5, new Insets(5, 0, 5, 0), -1, -1));
-        mainPanel.add(panel3, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panel5.add(alwaysOnTopCheckbox, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JLabel label1 = new JLabel();
         Font label1Font = this.$$$getFont$$$(null, Font.BOLD, -1, label1.getFont());
         if (label1Font != null) label1.setFont(label1Font);
-        label1.setText("\uD83D\uDC96❤\uFE0F Support me: ");
-        panel3.add(label1, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 1, false));
+        label1.setText("Theme");
+        panel5.add(label1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JLabel label2 = new JLabel();
+        Font label2Font = this.$$$getFont$$$(null, Font.BOLD, -1, label2.getFont());
+        if (label2Font != null) label2.setFont(label2Font);
+        label2.setText("Editor");
+        panel5.add(label2, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final Spacer spacer4 = new Spacer();
+        panel5.add(spacer4, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        minimizeThemeOnExportCheckBox = new JCheckBox();
+        minimizeThemeOnExportCheckBox.setSelected(false);
+        minimizeThemeOnExportCheckBox.setText("Minimize theme on export");
+        panel5.add(minimizeThemeOnExportCheckBox, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JLabel label3 = new JLabel();
+        Font label3Font = this.$$$getFont$$$(null, -1, 10, label3.getFont());
+        if (label3Font != null) label3.setFont(label3Font);
+        label3.setForeground(new Color(-9737874));
+        label3.setText("More performant, but less compatible across Bitwig Studio versions.");
+        panel5.add(label3, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 3, false));
+        compatibilityForOldThemesCheckBox = new JCheckBox();
+        compatibilityForOldThemesCheckBox.setText("Compatibility for old themes when importing on 6.x");
+        panel5.add(compatibilityForOldThemesCheckBox, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JLabel label4 = new JLabel();
+        Font label4Font = this.$$$getFont$$$(null, -1, 10, label4.getFont());
+        if (label4Font != null) label4.setFont(label4Font);
+        label4.setForeground(new Color(-9737874));
+        label4.setText("Match old color value names to work with Bitwig Studio 6.x, while importing.");
+        panel5.add(label4, new GridConstraints(8, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 3, false));
+        final JLabel label5 = new JLabel();
+        Font label5Font = this.$$$getFont$$$(null, -1, 10, label5.getFont());
+        if (label5Font != null) label5.setFont(label5Font);
+        label5.setForeground(new Color(-9737874));
+        label5.setText("Make the UI always on top of all windows.");
+        panel5.add(label5, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 3, false));
+        final JPanel panel6 = new JPanel();
+        panel6.setLayout(new GridLayoutManager(1, 5, new Insets(5, 0, 5, 0), -1, -1));
+        mainPanel.add(panel6, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        final JLabel label6 = new JLabel();
+        Font label6Font = this.$$$getFont$$$(null, Font.BOLD, -1, label6.getFont());
+        if (label6Font != null) label6.setFont(label6Font);
+        label6.setText("\uD83D\uDC96❤\uFE0F Support me: ");
+        panel6.add(label6, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         buyMeACoffeeLabel = new JLabel();
         buyMeACoffeeLabel.setForeground(new Color(-1134281));
         buyMeACoffeeLabel.setText("Buy Me A Coffee");
-        panel3.add(buyMeACoffeeLabel, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel6.add(buyMeACoffeeLabel, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         ethereumLabel = new JLabel();
         ethereumLabel.setForeground(new Color(-1134281));
         ethereumLabel.setText("Donate Ethereum");
-        panel3.add(ethereumLabel, new GridConstraints(0, 3, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final Spacer spacer3 = new Spacer();
-        panel3.add(spacer3, new GridConstraints(0, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
-        final Spacer spacer4 = new Spacer();
-        panel3.add(spacer4, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        panel6.add(ethereumLabel, new GridConstraints(0, 3, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final Spacer spacer5 = new Spacer();
+        panel6.add(spacer5, new GridConstraints(0, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final Spacer spacer6 = new Spacer();
+        panel6.add(spacer6, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final JPanel panel7 = new JPanel();
+        panel7.setLayout(new GridLayoutManager(1, 3, new Insets(0, 0, 0, 0), -1, -1));
+        mainPanel.add(panel7, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        final JLabel label7 = new JLabel();
+        Font label7Font = this.$$$getFont$$$(null, -1, 11, label7.getFont());
+        if (label7Font != null) label7.setFont(label7Font);
+        label7.setText("Resize Bitwig Studio window or click on the 'Dashboard Button' to render changes.");
+        panel7.add(label7, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final Spacer spacer7 = new Spacer();
+        panel7.add(spacer7, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final Spacer spacer8 = new Spacer();
+        panel7.add(spacer8, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
     }
 
     /**

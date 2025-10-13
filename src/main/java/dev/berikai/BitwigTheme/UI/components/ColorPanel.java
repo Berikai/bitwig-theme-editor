@@ -2,15 +2,19 @@ package dev.berikai.BitwigTheme.UI.components;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.Objects;
 
 public class ColorPanel extends JPanel {
+    private String default_value = "#000000";
     private String value = "#000000";
     private String key = "color_key";
     private final JPanel colorDisplayPanel;
+    private boolean modified = false;
 
     public ColorPanel(String key, String value) {
         this.key = key;
         this.value = value;
+        this.default_value = value;
 
         this.setLayout(new FlowLayout(FlowLayout.LEFT, 12, 9));
 
@@ -24,7 +28,7 @@ public class ColorPanel extends JPanel {
         keyLabel.setBorder(BorderFactory.createEmptyBorder(0, 7, 0, 0));
         this.add(keyLabel);
 
-        this.setPreferredSize(new Dimension(Integer.MAX_VALUE, 52));
+        this.setPreferredSize(new Dimension(430, 52));
 
         this.setToolTipText(key + ": " + value);
         this.setBackground(Color.DARK_GRAY);
@@ -45,6 +49,15 @@ public class ColorPanel extends JPanel {
 
     public void setValue(String value) {
         this.value = value;
+        setModified(!Objects.equals(this.value, this.default_value));
+    }
+
+    public boolean isModified() {
+        return modified;
+    }
+
+    public void setModified(boolean modified) {
+        this.modified = modified;
     }
 
     public JPanel getColorDisplayPanel() {
@@ -94,6 +107,4 @@ public class ColorPanel extends JPanel {
 
         return new Color(r, g, b, a);
     }
-
-
 }
