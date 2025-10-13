@@ -1,12 +1,14 @@
 # Bitwig Studio Theme Editor
 
+<img align="right" width="370" alt="Bitwig Theme Editor Preview" src="https://github.com/user-attachments/assets/8b147fd9-be26-435d-a2d9-f3d7ebcb48ff" />
+
 A theme editor for **Bitwig Studio**, written in Java.
 
 > ⚠ **Warning:** Please back up your **bitwig.jar** file before using this program, just in case.
 
 ---
 
-## 📥 Download
+### 📥 Download
 
 Download the latest version from the [releases page](https://github.com/Berikai/bitwig-theme-editor/releases/2.0.0-dev2)
 
@@ -41,9 +43,16 @@ java -jar bitwig-theme-editor.jar <bitwig-jar-path>
 ### 📍 Where to find themes?
 Community-made themes are available [here](https://github.com/Berikai/awesome-bitwig-themes).
 
+### 🛠 How to create, or apply themes?
+You can use theme editor user interface to import themes, or change colors and create your own theme!
 
-### 🛠 How to create themes?
-You can use theme editor user interface to change colors and create your own theme!
+<img width="226" alt="Bitwig Theme Editor MenuBar" src="https://github.com/user-attachments/assets/6924190d-7d87-4692-899d-33e060a1186a" />
+
+<img width="226" alt="Bitwig Theme Editor MenuBar2" src="https://github.com/user-attachments/assets/defa60b8-e221-427e-88e7-e516dd7d265a" />
+
+<img width="300" alt="image" src="https://github.com/user-attachments/assets/79390de0-2a25-463a-ac56-fd89d89aef0f" />
+
+#
 
 Or, you can manually create the theme file after patching Bitwig Studio:
 
