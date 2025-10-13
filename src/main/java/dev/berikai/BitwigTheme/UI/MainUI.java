@@ -5,18 +5,19 @@ import dev.berikai.BitwigTheme.asm.JarNode;
 
 import javax.swing.*;
 import java.io.File;
+import java.net.URISyntaxException;
 import java.util.Scanner;
 
 import static dev.berikai.BitwigTheme.Main.applyPatch;
 
 public class MainUI extends JFrame {
-    public MainUI() {
+    public MainUI() throws URISyntaxException {
         loadConfig();
     }
 
     public static void updateConfig(String bitwigPath) {
         try {
-            File configFile = new File("bte_config.txt");
+            File configFile = new File(new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent(), "bte_config.txt");
             if (!configFile.exists()) {
                 configFile.createNewFile();
             }
@@ -28,8 +29,8 @@ public class MainUI extends JFrame {
         }
     }
 
-    public static void loadConfig() {
-        File configFile = new File("bte_config.txt");
+    public static void loadConfig() throws URISyntaxException {
+        File configFile = new File(new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent(), "bte_config.txt");
         if (configFile.exists()) {
             try (Scanner scanner = new Scanner(configFile)) {
                 while (scanner.hasNextLine()) {
