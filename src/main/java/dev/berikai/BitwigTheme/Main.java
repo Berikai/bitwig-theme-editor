@@ -1,129 +1,168 @@
 package dev.berikai.BitwigTheme;
 
-import com.formdev.flatlaf.FlatIntelliJLaf;
+import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMTMaterialDarkerIJTheme;
 import dev.berikai.BitwigTheme.UI.MainUI;
 import dev.berikai.BitwigTheme.asm.JarNode;
-import dev.berikai.BitwigTheme.core.BitwigColor;
-import dev.berikai.BitwigTheme.core.ThemeClass;
-import dev.berikai.BitwigTheme.core.advanced.AdvancedThemeManagerClass;
-import dev.berikai.BitwigTheme.core.impl.ArrangerThemeClass;
-import dev.berikai.BitwigTheme.core.HashCheckClass;
-import dev.berikai.BitwigTheme.core.impl.WindowThemeClass;
-import dev.berikai.BitwigTheme.extension.ThemeFile;
+import dev.berikai.BitwigTheme.core.BitwigClass;
+import dev.berikai.BitwigTheme.core.PatchClass;
+import dev.berikai.BitwigTheme.core.IntegrityClass;
+import dev.berikai.BitwigTheme.core.impl.BridgePatchClass;
+import dev.berikai.BitwigTheme.core.impl.ColorPatchClass;
+import org.objectweb.asm.tree.FieldNode;
 
 import javax.swing.*;
+import java.awt.*;
 import java.io.File;
-import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.HashMap;
-import java.util.TreeMap;
 import java.util.zip.ZipException;
 
 public class Main {
-    public static JarNode jar;
+    public static String version; // Project version
+    public static String bitwigVersion; // Bitwig Studio version, obtained from BitwigClass
+    public static JarNode jar; // ASM-tree JarNode object for bitwig.jar
 
     private static void printUsage() throws URISyntaxException {
+        // Get bitwig-theme-editor-x.x.x.jar location
         String jarName = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()).getName();
 
-        System.out.println("Usage:  java -jar " + jarName + " <bitwig-jar-path> [command] <theme-path>");
-        System.out.println("    export      Exports the current theme to the specified file path (overwrites existing file).");
-        System.out.println("    apply       Applies the theme by modifying the bitwig.jar file based on the specified theme file.");
+        // Print usage
+        System.out.println("Usage:  java -jar " + jarName + " <bitwig-jar-path>");
     }
 
     public static void main(String[] args) throws Exception {
-        System.out.println("Bitwig meets themes... Let's go!");
+        // Get version
+        version = Main.class.getPackage().getImplementationVersion();
+        version = (version != null) ? version : "Development";
 
+        // Print introduction
+        System.out.println("Bitwig Theme Editor " + version);
+        System.out.println("DISCLAIMER: This is an unofficial free open source 3rd party tool, made with educational purposes only. Author is not responsible for any damage caused by using this tool. Use at your own risk.");
+        System.out.println();
+
+        // Run UI, if no argument given
         if (args.length == 0) {
-            UIManager.setLookAndFeel(new FlatIntelliJLaf());
-            new MainUI();
+            UIManager.setLookAndFeel(new FlatMTMaterialDarkerIJTheme());
+            try {
+                new MainUI();
+            } catch (HeadlessException headlessException) {
+                System.out.println("ERROR: GUI cannot be run in headless environment.");
+                System.out.println(" -> Make sure your JRE/JDK installation includes GUI support (e.g. Oracle JDK).");
+                System.out.println(" -> As a last resort, you can use command line with jar path instead.");
+                System.out.println();
+                printUsage();
+                System.out.println();
+            }
             return;
         }
 
-        if (args.length < 3) {
-            System.err.println("Not enough arguments. Usage:");
+        // Print usage, if argument count isn't 1
+        if (args.length != 1) {
+            System.out.println("ERROR: Wrong usage!");
+            System.out.println();
             printUsage();
             return;
         }
 
+        // Get bitwig.jar path from the first argument
         String bitwig_path = args[0];
-        String command = args[1];
-        String theme_path = args[2];
 
+        // Create an ASM-tree JarNode object for bytecode manipulation
         try {
             jar = new JarNode(bitwig_path);
         } catch (ZipException e) {
-            String errorMessage = "JAR file " + bitwig_path + " is not valid or corrupted.";
-            System.err.println(errorMessage);
+            System.out.println("ERROR: JAR file " + bitwig_path + " is not valid or corrupted.");
+            System.out.println();
             throw new RuntimeException(e);
         } catch (Exception e) {
-            String errorMessage = "JAR file " + bitwig_path + " does not exist or could not be accessed. Try to run as admin/root.";
-            System.err.println(errorMessage);
+            System.out.println("ERROR: JAR file " + bitwig_path + " does not exist or could not be accessed. Try to run as admin/root.");
+            System.out.println();
             throw new RuntimeException(e);
         }
 
-        switch (command) {
-            case "export":
-                exportCurrentTheme(theme_path, jar);
-                break;
-            case "apply":
-                applyTheme(bitwig_path, theme_path, jar);
-                break;
-            default:
-                System.out.println("Unknown command: " + command);
-                printUsage();
+        // Patch jar
+        // 1 = success, 0 = fail
+        final int result = applyPatch(bitwig_path, jar);
+        if(result == 1) {
+            // Brief usage instruction
+            System.out.println("Patch successful!");
+            System.out.println();
+            System.out.println("1. Run Bitwig Studio (run as admin/root if step 2 fails)");
+            System.out.println("2. A file named 'default.bte' will be created in the directory of bitwig.jar");
+            System.out.println("3. Create a file named 'theme.bte' in the same directory");
+            System.out.println("4. Add the lines of the color values you want to change, modify, and save");
+            System.out.println("5. Click on the 'Dashboard Button' or resize the window to render changes");
+            System.out.println("Note: You can also run this app with GUI to change theme!");
+            System.out.println();
+
+            System.out.println("Happy theming!");
+            System.out.println();
         }
+
+        // ❤
+        System.out.println("If you enjoy the project and feel like showing a little love, thank you!");
+        System.out.println("❤ Donate ETH/BNB: 0x3aCdA83c0EAD65033cD532357De3c8B71b1C94d5");
+        System.out.println("❤ Buy Me A Coffee: https://buymeacoffee.com/verdant");
+        System.out.println();
     }
 
-    public static void exportCurrentTheme(String path, JarNode jar) throws IOException {
-        System.out.println("Exporting current theme to: " + path);
-        ThemeClass windowThemeClass = new WindowThemeClass(jar.getNodes());
-        ThemeClass arrangerThemeClass = new ArrangerThemeClass(jar.getNodes());
+    public static int applyPatch(String bitwig_path, JarNode jar) {
+        System.out.println("Patching started...");
 
-        AdvancedThemeManagerClass advancedThemeManagerClass = new AdvancedThemeManagerClass(jar.getNodes());
+        BitwigClass bwClass = new BitwigClass(jar.getNodes());
+        if (!bwClass.isBitwigJAR()) {
+            System.out.println("ERROR: Selected JAR file is not Bitwig Studio JAR.");
+            System.out.println();
+            return 3;
+        }
 
-        // Inner HashMap changed to TreeMap to order keys alphabetically.
-        HashMap<String, TreeMap<String, BitwigColor>> theme = new HashMap<>();
+        bitwigVersion = bwClass.getVersion();
+        System.out.println("Detected Bitwig Studio version: " + bitwigVersion);
 
-        theme.put("window", new TreeMap<>(windowThemeClass.getTheme()));
-        theme.put("arranger", new TreeMap<>(arrangerThemeClass.getTheme()));
+        // Initialize class patchers
+        PatchClass colorClass = new ColorPatchClass(jar.getNodes());
+        PatchClass bridgeClass = new BridgePatchClass(jar.getNodes());
 
-        theme.put("advanced", new TreeMap<>(advancedThemeManagerClass.getTheme()));
-
-        ThemeFile.exportTheme(theme, path);
-        System.out.println("Theme successfully exported to: " + path);
-    }
-
-    public static int applyTheme(String bitwig_path, String path, JarNode jar) throws IOException {
-        System.out.println("Applying theme from: " + path);
-        File file = new File(path);
-        
-        // If the operation succeeds, return 1
-        if (file.exists() && file.canRead()) {
-            ThemeClass windowThemeClass = new WindowThemeClass(jar.getNodes());
-            ThemeClass arrangerThemeClass = new ArrangerThemeClass(jar.getNodes());
-
-            AdvancedThemeManagerClass advancedThemeManagerClass = new AdvancedThemeManagerClass(jar.getNodes());
-
-            windowThemeClass.setTheme(ThemeFile.readTheme(path).get("window"));
-            arrangerThemeClass.setTheme(ThemeFile.readTheme(path).get("arranger"));
-
-            advancedThemeManagerClass.setTheme(ThemeFile.readTheme(path).get("advanced"));
-
-            HashCheckClass hashCheckClass = new HashCheckClass(jar.getNodes());
-            hashCheckClass.disableHashCheck();
-
-            try {
-                jar.export(bitwig_path);
-                System.out.println("Theme successfully applied from: " + path);
-                return 1;
-            } catch (Exception e) {
-                System.err.println("Failed to apply theme. Couldn't write to JAR file.");
-                return 2;
+        // Check if ColorClass already has the field "colorName"
+        // This is to prevent double patching
+        boolean alreadyPatched = false;
+        for (FieldNode field : colorClass.getClassNode().fields) {
+            if (field.name.equals("colorName") && field.desc.equals("Ljava/lang/String;")) {
+                alreadyPatched = true;
+                break;
             }
         }
 
-        // Otherwise return 0 so that client can handle this
-        System.err.println("Failed to apply theme. File not found or permission issue.");
-        return 0;
+        if (alreadyPatched) {
+            System.out.println("WARNING: Your bitwig.jar is already patched! Skipping...");
+            System.out.println();
+            return 0;
+        }
+
+        // Write all PatchClasss.mappings elements to console
+        // It can be helpful for the folks who want to experiment with the bytecode themselves
+        for (String key : PatchClass.mappings.keySet()) {
+            System.out.println("> Mapping: " + key + " -> " + PatchClass.mappings.get(key));
+        }
+        System.out.println();
+
+        // Apply patches
+        colorClass.patch();
+        bridgeClass.patch();
+
+        // Disable integrity check
+        IntegrityClass integrityClass = new IntegrityClass(jar.getNodes());
+        integrityClass.disableIntegrity();
+
+        // Try exporting and overwriting the jar
+        // If the operation succeeds, return 1
+        try {
+            jar.export(bitwig_path);
+            return 1;
+        } catch (Exception e) {
+            System.out.println("ERROR: Failed to patch jar. Couldn't write to JAR file.");
+            System.out.println();
+            e.printStackTrace();
+            return 2;
+        }
     }
 }

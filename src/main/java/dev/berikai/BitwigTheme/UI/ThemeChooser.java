@@ -8,17 +8,21 @@ import java.util.Objects;
 public class ThemeChooser extends JFileChooser {
     public ThemeChooser(String dialog_mode) {
         super(FileSystemView.getFileSystemView());
-        FileNameExtensionFilter json_filter = new FileNameExtensionFilter("JSON Files (*.json)", "json");
-        FileNameExtensionFilter yaml_filter = new FileNameExtensionFilter("YAML Files (*.yaml)", "yaml");
+        FileNameExtensionFilter bte_filter = new FileNameExtensionFilter("Bitwig Theme Editor Files (*.bte)", "bte");
+        FileNameExtensionFilter json_filter = new FileNameExtensionFilter("JSON Files (deprecated) (*.json)", "json");
         setFileHidingEnabled(false);
         setAcceptAllFileFilterUsed(false);
-        addChoosableFileFilter(json_filter);
-        addChoosableFileFilter(yaml_filter);
-        setDialogTitle(Objects.equals(dialog_mode, "Open") ? "Select theme file" : "Export theme file");
-        int result = Objects.equals(dialog_mode, "Open") ? showOpenDialog(null) : showSaveDialog(null);
 
-        if (result != JFileChooser.APPROVE_OPTION) {
-            System.exit(0);
+        addChoosableFileFilter(bte_filter);
+        if (Objects.equals(dialog_mode, "Open")) addChoosableFileFilter(json_filter); // Only allow .bte for saving
+
+        setDialogTitle(Objects.equals(dialog_mode, "Open") ? "Import Theme" : "Export Theme");
+        int result = Objects.equals(dialog_mode, "Open") ? showOpenDialog(null) : showSaveDialog(null);
+        if (result == APPROVE_OPTION && Objects.equals(dialog_mode, "Save")) {
+            java.io.File file = getSelectedFile();
+            if (!file.getName().toLowerCase().endsWith(".bte")) {
+                setSelectedFile(new java.io.File(file.getParentFile(), file.getName() + ".bte"));
+            }
         }
     }
 }
