@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "dev.berikai.BitwigTheme"
-version = "2.0.0-dev2"
+version = "2.0.0"
 
 repositories {
     mavenCentral()
