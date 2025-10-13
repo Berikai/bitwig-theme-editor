@@ -13,7 +13,6 @@ import org.objectweb.asm.tree.FieldNode;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.zip.ZipException;
 
