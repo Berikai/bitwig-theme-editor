@@ -13,7 +13,7 @@ A theme editor for **Bitwig Studio**, written in Java.
 Download the latest version from the [releases page](https://github.com/Berikai/bitwig-theme-editor/releases)
 
 #### 🕰️ Looking for the old version? (1.x)
-<sup>[Legacy Download](https://github.com/Berikai/bitwig-theme-editor/releases/tag/1.4.3)   [Source Code](https://github.com/Berikai/bitwig-theme-editor/tree/1.4.3-stable)</sup>
+<sup>[Legacy Download](https://github.com/Berikai/bitwig-theme-editor/releases/tag/1.4.3)   [Source Code](https://github.com/Berikai/bitwig-theme-editor/tree/1.4.3)</sup>
 
 ### ⚙️ Requirements
 
