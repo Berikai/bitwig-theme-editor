@@ -10,6 +10,7 @@ public class ColorPanel extends JPanel {
     private String key = "color_key";
     private final JPanel colorDisplayPanel;
     private boolean modified = false;
+    public static ColorPanel reverted = null;
 
     public ColorPanel(String key, String value) {
         this.key = key;
@@ -106,5 +107,9 @@ public class ColorPanel extends JPanel {
         }
 
         return new Color(r, g, b, a);
+    }
+
+    public void setReverted() {
+        reverted = this;
     }
 }
