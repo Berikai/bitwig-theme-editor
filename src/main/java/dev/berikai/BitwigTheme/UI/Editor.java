@@ -105,8 +105,8 @@ public class Editor extends JFrame {
         JMenuBar menuBar = new JMenuBar();
 
         JMenu fileMenu = new JMenu("File");
-        JMenuItem importTheme = new JMenuItem("Import");
-        JMenuItem exportTheme = new JMenuItem("Export");
+        JMenuItem importTheme = new JMenuItem("Import file");
+        JMenuItem exportTheme = new JMenuItem("Export file");
         JMenuItem exit = new JMenuItem("Exit");
         fileMenu.add(importTheme);
         fileMenu.add(exportTheme);
@@ -116,7 +116,7 @@ public class Editor extends JFrame {
 
         JMenu editorMenu = new JMenu("Editor");
         JMenuItem resetToStock = new JMenuItem("Reset to default");
-        JMenuItem selectJar = new JMenuItem("Select JAR");
+        JMenuItem selectJar = new JMenuItem("Select/Patch bitwig.jar");
         editorMenu.add(resetToStock);
         editorMenu.addSeparator();
         editorMenu.add(selectJar);
