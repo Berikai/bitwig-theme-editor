@@ -40,11 +40,17 @@ public class Editor extends JFrame {
     private JCheckBox compatibilityForOldThemesCheckBox;
     private JLabel colorsSizeLabel;
     private JLabel modifiedSizeLabel;
+    private JButton undoButton1;
+    private JButton redoButton1;
+    private JButton undoButton2;
+    private JButton redoButton2;
 
     private int hoveredIndex = -1;
 
     private boolean isBitwig6OrNewer = false;
     private final String bitwig_path;
+
+    private final UndoRedoManager undoRedoManager = new UndoRedoManager(50);
 
     public Editor(String bitwig_path, int result) {
         this.bitwig_path = bitwig_path;
@@ -80,7 +86,7 @@ public class Editor extends JFrame {
                 System.exit(1);
                 break;
             case 2:
-                JOptionPane.showMessageDialog(this, "Failed to patch bitwig.jar. See console for more information.", "Error!", JOptionPane.INFORMATION_MESSAGE);
+                // Error messages are already shown in applyPatch method, simply exit here
                 System.exit(1);
                 break;
             case 1:
@@ -99,8 +105,8 @@ public class Editor extends JFrame {
         JMenuBar menuBar = new JMenuBar();
 
         JMenu fileMenu = new JMenu("File");
-        JMenuItem importTheme = new JMenuItem("Import");
-        JMenuItem exportTheme = new JMenuItem("Export");
+        JMenuItem importTheme = new JMenuItem("Import file");
+        JMenuItem exportTheme = new JMenuItem("Export file");
         JMenuItem exit = new JMenuItem("Exit");
         fileMenu.add(importTheme);
         fileMenu.add(exportTheme);
@@ -110,7 +116,7 @@ public class Editor extends JFrame {
 
         JMenu editorMenu = new JMenu("Editor");
         JMenuItem resetToStock = new JMenuItem("Reset to default");
-        JMenuItem selectJar = new JMenuItem("Select JAR");
+        JMenuItem selectJar = new JMenuItem("Select/Patch bitwig.jar");
         editorMenu.add(resetToStock);
         editorMenu.addSeparator();
         editorMenu.add(selectJar);
@@ -185,13 +191,20 @@ public class Editor extends JFrame {
             list.setCellRenderer((_list, value, index, isSelected, cellHasFocus) -> {
                 if (index == hoveredIndex) {
                     value.setBackground(Color.decode("#404040")); // hover color
-                    if (isSelected) {
-                        value.setBackground(Color.decode("#506550")); // hover + selected color
+                    if (isSelected) value.setBackground(Color.decode("#506550")); // hover + selected color
+                    if (ColorPanel.reverted != null && ColorPanel.reverted.equals(value)) {
+                        value.setBackground(Color.decode("#605050")); // hover + reverted color
                     }
                 } else if (isSelected) {
                     value.setBackground(Color.decode("#405040")); // selected color
+                    if (ColorPanel.reverted != null && ColorPanel.reverted.equals(value)) {
+                        value.setBackground(Color.decode("#604040")); // selected + reverted color
+                    }
                 } else {
                     value.setBackground(Color.decode("#303030")); // default color
+                    if (ColorPanel.reverted != null && ColorPanel.reverted.equals(value)) {
+                        value.setBackground(Color.decode("#604040")); // reverted color
+                    }
                 }
                 return value;
             });
@@ -218,17 +231,83 @@ public class Editor extends JFrame {
                     int index = list.locationToIndex(mouseEvent.getPoint());
                     if (index != -1 && mouseEvent.getClickCount() == 1) {
                         ColorPanel item = listModel.getElementAt(index);
+                        ColorPanel.reverted = null;
 
                         Color newColor = JColorChooser.showDialog(item, "Choose Color", ColorPanel.decodeRGBA(item.getValue()));
                         if (newColor != null) {
+                            String newColorHex = format("#%02x%02x%02x%02x", newColor.getRed(), newColor.getGreen(), newColor.getBlue(), newColor.getAlpha());
+                            undoRedoManager.addAction(new ColorAction(item.getKey(), item.getValue(), newColorHex));
                             item.getColorDisplayPanel().setBackground(newColor);
-                            item.setValue(format("#%02x%02x%02x%02x", newColor.getRed(), newColor.getGreen(), newColor.getBlue(), newColor.getAlpha()));
+                            item.setValue(newColorHex);
                             updateModifiedList(item);
                             item.setToolTipText(item.getKey() + ": " + item.getValue());
                             list.repaint();
                             saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                            undoRedoManager.printHistory();
                         }
                     }
+                    undoButton1.setEnabled(undoRedoManager.canUndo());
+                    undoButton2.setEnabled(undoRedoManager.canUndo());
+                    redoButton1.setEnabled(false);
+                    redoButton2.setEnabled(false);
+                }
+            });
+
+            JButton undoButton = (list == list1) ? undoButton1 : undoButton2;
+            undoButton.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if(!undoButton.isEnabled()) return;
+                    ColorAction action = undoRedoManager.undo();
+                    if (action != null) {
+                        for (int i = 0; i < listModel.size(); i++) {
+                            ColorPanel item = listModel.getElementAt(i);
+                            if (item.getKey().equals(action.getColorName())) {
+                                item.setReverted();
+                                item.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(action.getOldValue()));
+                                item.setValue(action.getOldValue());
+                                item.setToolTipText(item.getKey() + ": " + item.getValue());
+                                updateModifiedList(item);
+                                list.repaint();
+                                saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                                undoRedoManager.printHistory();
+                                break;
+                            }
+                        }
+                    }
+                    undoButton1.setEnabled(undoRedoManager.canUndo());
+                    undoButton2.setEnabled(undoRedoManager.canUndo());
+                    redoButton1.setEnabled(undoRedoManager.canRedo());
+                    redoButton2.setEnabled(undoRedoManager.canRedo());
+                }
+            });
+
+            JButton redoButton = (list == list1) ? redoButton1 : redoButton2;
+            redoButton.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if(!redoButton.isEnabled()) return;
+                    ColorAction action = undoRedoManager.redo();
+                    if (action != null) {
+                        for (int i = 0; i < listModel.size(); i++) {
+                            ColorPanel item = listModel.getElementAt(i);
+                            if (item.getKey().equals(action.getColorName())) {
+                                item.setReverted();
+                                item.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(action.getNewValue()));
+                                item.setValue(action.getNewValue());
+                                item.setToolTipText(item.getKey() + ": " + item.getValue());
+                                updateModifiedList(item);
+                                list.repaint();
+                                saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                                undoRedoManager.printHistory();
+                                break;
+                            }
+                        }
+                    }
+                    undoButton1.setEnabled(undoRedoManager.canUndo());
+                    undoButton2.setEnabled(undoRedoManager.canUndo());
+                    redoButton1.setEnabled(undoRedoManager.canRedo());
+                    redoButton2.setEnabled(undoRedoManager.canRedo());
                 }
             });
 
@@ -669,8 +748,6 @@ public class Editor extends JFrame {
         final DefaultListModel defaultListModel1 = new DefaultListModel();
         list1.setModel(defaultListModel1);
         scrollPane1.setViewportView(list1);
-        textField1 = new JTextField();
-        panel1.add(textField1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         final JPanel panel2 = new JPanel();
         panel2.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
         panel1.add(panel2, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -681,6 +758,31 @@ public class Editor extends JFrame {
         panel2.add(colorsSizeLabel, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer1 = new Spacer();
         panel2.add(spacer1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final JToolBar toolBar1 = new JToolBar();
+        toolBar1.setBackground(new Color(-13619152));
+        toolBar1.setRollover(true);
+        toolBar1.putClientProperty("JToolBar.isRollover", Boolean.TRUE);
+        panel1.add(toolBar1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(-1, 20), null, 0, false));
+        textField1 = new JTextField();
+        textField1.setText("");
+        textField1.setToolTipText("Search color");
+        toolBar1.add(textField1);
+        undoButton1 = new JButton();
+        undoButton1.setBackground(new Color(-12566464));
+        undoButton1.setEnabled(false);
+        Font undoButton1Font = this.$$$getFont$$$(null, Font.BOLD, -1, undoButton1.getFont());
+        if (undoButton1Font != null) undoButton1.setFont(undoButton1Font);
+        undoButton1.setText("↩");
+        undoButton1.setToolTipText("Undo");
+        toolBar1.add(undoButton1);
+        redoButton1 = new JButton();
+        redoButton1.setBackground(new Color(-12566464));
+        redoButton1.setEnabled(false);
+        Font redoButton1Font = this.$$$getFont$$$(null, Font.BOLD, -1, redoButton1.getFont());
+        if (redoButton1Font != null) redoButton1.setFont(redoButton1Font);
+        redoButton1.setText("↪");
+        redoButton1.setToolTipText("Redo");
+        toolBar1.add(redoButton1);
         final JPanel panel3 = new JPanel();
         panel3.setLayout(new GridLayoutManager(3, 1, new Insets(5, 5, 5, 5), -1, -1));
         tabbedPane1.addTab("Modified", panel3);
@@ -691,8 +793,6 @@ public class Editor extends JFrame {
         final DefaultListModel defaultListModel2 = new DefaultListModel();
         list2.setModel(defaultListModel2);
         scrollPane2.setViewportView(list2);
-        textField2 = new JTextField();
-        panel3.add(textField2, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         final JPanel panel4 = new JPanel();
         panel4.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
         panel3.add(panel4, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -703,6 +803,30 @@ public class Editor extends JFrame {
         panel4.add(modifiedSizeLabel, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer2 = new Spacer();
         panel4.add(spacer2, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final JToolBar toolBar2 = new JToolBar();
+        toolBar2.setBackground(new Color(-13619152));
+        toolBar2.setRollover(true);
+        toolBar2.putClientProperty("JToolBar.isRollover", Boolean.TRUE);
+        panel3.add(toolBar2, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(-1, 20), null, 0, false));
+        textField2 = new JTextField();
+        textField2.setToolTipText("Search modified color");
+        toolBar2.add(textField2);
+        undoButton2 = new JButton();
+        undoButton2.setBackground(new Color(-12566464));
+        undoButton2.setEnabled(false);
+        Font undoButton2Font = this.$$$getFont$$$(null, Font.BOLD, -1, undoButton2.getFont());
+        if (undoButton2Font != null) undoButton2.setFont(undoButton2Font);
+        undoButton2.setText("↩");
+        undoButton2.setToolTipText("Undo");
+        toolBar2.add(undoButton2);
+        redoButton2 = new JButton();
+        redoButton2.setBackground(new Color(-12566464));
+        redoButton2.setEnabled(false);
+        Font redoButton2Font = this.$$$getFont$$$(null, Font.BOLD, -1, redoButton2.getFont());
+        if (redoButton2Font != null) redoButton2.setFont(redoButton2Font);
+        redoButton2.setText("↪");
+        redoButton2.setToolTipText("Redo");
+        toolBar2.add(redoButton2);
         final JPanel panel5 = new JPanel();
         panel5.setLayout(new GridLayoutManager(10, 2, new Insets(10, 10, 10, 10), -1, -1));
         tabbedPane1.addTab("Options", panel5);
@@ -758,7 +882,7 @@ public class Editor extends JFrame {
         final JLabel label6 = new JLabel();
         Font label6Font = this.$$$getFont$$$(null, Font.BOLD, -1, label6.getFont());
         if (label6Font != null) label6.setFont(label6Font);
-        label6.setText("\uD83D\uDC96❤\uFE0F Support me: ");
+        label6.setText("❤ Support me: ");
         panel6.add(label6, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         buyMeACoffeeLabel = new JLabel();
         buyMeACoffeeLabel.setForeground(new Color(-1134281));

@@ -1,6 +1,7 @@
 package dev.berikai.BitwigTheme;
 
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMTMaterialDarkerIJTheme;
+import com.formdev.flatlaf.util.SystemInfo;
 import dev.berikai.BitwigTheme.UI.MainUI;
 import dev.berikai.BitwigTheme.asm.JarNode;
 import dev.berikai.BitwigTheme.core.BitwigClass;
@@ -20,6 +21,7 @@ public class Main {
     public static String version; // Project version
     public static String bitwigVersion; // Bitwig Studio version, obtained from BitwigClass
     public static JarNode jar; // ASM-tree JarNode object for bitwig.jar
+    public static boolean isGUI = false; // Whether the app is running with GUI or command line
 
     private static void printUsage() throws URISyntaxException {
         // Get bitwig-theme-editor-x.x.x.jar location
@@ -41,8 +43,16 @@ public class Main {
 
         // Run UI, if no argument given
         if (args.length == 0) {
+            // macOS specific settings
+            if(SystemInfo.isMacOS) {
+                System.setProperty("apple.awt.application.name", "Bitwig Theme Editor");
+                System.setProperty("apple.awt.application.appearance", "system");
+                //System.setProperty("apple.laf.useScreenMenuBar", "true"); // Not sure if this is better in terms of UX
+            }
+
             UIManager.setLookAndFeel(new FlatMTMaterialDarkerIJTheme());
             try {
+                isGUI = true;
                 new MainUI();
             } catch (HeadlessException headlessException) {
                 System.out.println("ERROR: GUI cannot be run in headless environment.");
@@ -162,6 +172,12 @@ public class Main {
             System.out.println("ERROR: Failed to patch jar. Couldn't write to JAR file.");
             System.out.println();
             e.printStackTrace();
+            if(isGUI) {
+                JOptionPane.showMessageDialog(null,
+                        "Failed to patch jar.\nError: " + e.getMessage(),
+                        "Error!",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
             return 2;
         }
     }
