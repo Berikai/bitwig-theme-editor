@@ -1,6 +1,7 @@
 package dev.berikai.BitwigTheme;
 
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMTMaterialDarkerIJTheme;
+import com.formdev.flatlaf.util.SystemInfo;
 import dev.berikai.BitwigTheme.UI.MainUI;
 import dev.berikai.BitwigTheme.asm.JarNode;
 import dev.berikai.BitwigTheme.core.BitwigClass;
@@ -42,6 +43,13 @@ public class Main {
 
         // Run UI, if no argument given
         if (args.length == 0) {
+            // macOS specific settings
+            if(SystemInfo.isMacOS) {
+                System.setProperty("apple.awt.application.name", "Bitwig Theme Editor");
+                System.setProperty("apple.awt.application.appearance", "system");
+                //System.setProperty("apple.laf.useScreenMenuBar", "true"); // Not sure if this is better in terms of UX
+            }
+
             UIManager.setLookAndFeel(new FlatMTMaterialDarkerIJTheme());
             try {
                 isGUI = true;
