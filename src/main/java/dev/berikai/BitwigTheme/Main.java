@@ -20,6 +20,7 @@ public class Main {
     public static String version; // Project version
     public static String bitwigVersion; // Bitwig Studio version, obtained from BitwigClass
     public static JarNode jar; // ASM-tree JarNode object for bitwig.jar
+    public static boolean isGUI = false; // Whether the app is running with GUI or command line
 
     private static void printUsage() throws URISyntaxException {
         // Get bitwig-theme-editor-x.x.x.jar location
@@ -43,6 +44,7 @@ public class Main {
         if (args.length == 0) {
             UIManager.setLookAndFeel(new FlatMTMaterialDarkerIJTheme());
             try {
+                isGUI = true;
                 new MainUI();
             } catch (HeadlessException headlessException) {
                 System.out.println("ERROR: GUI cannot be run in headless environment.");
@@ -162,6 +164,12 @@ public class Main {
             System.out.println("ERROR: Failed to patch jar. Couldn't write to JAR file.");
             System.out.println();
             e.printStackTrace();
+            if(isGUI) {
+                JOptionPane.showMessageDialog(null,
+                        "Failed to patch jar.\nError: " + e.getMessage(),
+                        "Error!",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
             return 2;
         }
     }
