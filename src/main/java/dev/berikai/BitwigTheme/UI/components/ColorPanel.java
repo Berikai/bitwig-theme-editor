@@ -8,6 +8,7 @@ public class ColorPanel extends JPanel {
     private String default_value = "#000000";
     private String value = "#000000";
     private String key = "color_key";
+    private String comment = "";
     private final JPanel colorDisplayPanel;
     private boolean modified = false;
     public static ColorPanel reverted = null;
@@ -16,6 +17,7 @@ public class ColorPanel extends JPanel {
         this.key = key;
         this.value = value;
         this.default_value = value;
+        this.comment = comment;
 
         this.setLayout(new FlowLayout(FlowLayout.LEFT, 12, 9));
 
@@ -60,6 +62,10 @@ public class ColorPanel extends JPanel {
     public void setModified(boolean modified) {
         this.modified = modified;
     }
+
+    public String getComment() { return comment; }
+
+    public void setComment(String comment) { this.comment = comment; }
 
     public JPanel getColorDisplayPanel() {
         return colorDisplayPanel;

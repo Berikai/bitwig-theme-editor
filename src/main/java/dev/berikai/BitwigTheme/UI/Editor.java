@@ -453,12 +453,17 @@ public class Editor extends JFrame {
                         }
                     }
                     if (parts[0].equals("Gradient")) {
-                        disableGradientCheckBox.setSelected(parts[1].trim().equals("false"));
+                        disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
                     }
                     ColorPanel item;
                     try {
-                        item = new ColorPanel(parts[0].trim(), parts[1].trim());
+                        item = new ColorPanel(parts[0].trim(), parts[1].split("//")[0].trim());
+                        try {
+                            item.setComment(parts[1].split("//")[1].trim());
+                        } catch (Exception e) {
+                            item.setComment("");
+                        }
                     } catch (Exception e) {
                         System.out.println("-> Skipping invalid line in theme file: " + line);
                         continue;
@@ -495,7 +500,7 @@ public class Editor extends JFrame {
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
                     if (parts[0].equals("Gradient")) {
-                        disableGradientCheckBox.setSelected(parts[1].trim().equals("false"));
+                        disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
                     }
                     for (Object _panel : listModel.toArray()) {
@@ -504,13 +509,18 @@ public class Editor extends JFrame {
                         String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(parts[0].trim()) : parts[0].trim();
                         if (panel.getKey().equals(colorKey)) {
                             try {
-                                panel.setValue(parts[1].trim());
+                                panel.setValue(parts[1].split("//")[0].trim());
+                                try {
+                                    panel.setComment(parts[1].split("//")[1].trim());
+                                } catch (Exception e) {
+                                    panel.setComment("");
+                                }
                                 updateModifiedList(panel);
                             } catch (Exception e) {
                                 System.out.println("-> Skipping invalid line in theme file: " + line);
                                 continue;
                             }
-                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(parts[1].trim()));
+                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(parts[1].split("//")[0].trim()));
                             panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
                         }
                     }
@@ -625,7 +635,7 @@ public class Editor extends JFrame {
             for (Object _panel : minimizeThemeOnExportCheckBox.isSelected() ? listModel2.toArray() : listModel.toArray()) {
                 if (!(_panel instanceof ColorPanel)) continue;
                 ColorPanel panel = (ColorPanel) _panel;
-                writer.println(panel.getKey() + ": " + panel.getValue());
+                writer.println(panel.getKey() + ": " + panel.getValue() + (!panel.getComment().isEmpty() ? " // " + panel.getComment() : ""));
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Failed to save theme file!", "Error", JOptionPane.ERROR_MESSAGE);
