@@ -433,6 +433,10 @@ public class Editor extends JFrame {
                     if (version.compareTo("6.0") >= 0) {
                         // Version is 6.0 or bigger
                         isBitwig6OrNewer = true;
+
+                        // Automatically select compatibility mode for 6.0 Beta 1>=
+                        // This is actually better, since almost always this needs to be checked while using Bitwig Studio 6
+                        compatibilityForOldThemesCheckBox.setSelected(true);
                     }
                     continue;
                 }
