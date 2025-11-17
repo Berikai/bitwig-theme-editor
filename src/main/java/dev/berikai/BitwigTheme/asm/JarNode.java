@@ -4,6 +4,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -83,6 +86,9 @@ public class JarNode {
 
     // Export modified jar to specified path
     public void export(String path) throws IOException {
+        // Backup original jar file, just in case
+        Files.copy(Paths.get(inputPath), Paths.get(inputPath + ".bak"), StandardCopyOption.REPLACE_EXISTING);
+
         // Create output ZipOutputStream
         ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(path));
 
