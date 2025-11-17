@@ -72,7 +72,7 @@ public class Editor extends JFrame {
         initializeUI();
 
         loadDefaultThemeColors();
-        loadThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+        loadThemeColors(Main.getVersionConfigPath("theme.bte"));
 
         setVisible(true);
     }
@@ -91,7 +91,7 @@ public class Editor extends JFrame {
                 break;
             case 1:
                 JOptionPane.showMessageDialog(this, "Patched JAR file successfully!", "Success!", JOptionPane.INFORMATION_MESSAGE);
-                JOptionPane.showMessageDialog(this, "Now, please run your patched Bitwig Studio installation to initialize default theme color values for theming! Then, press OK.", "Run Bitwig Studio", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Now, please run your patched Bitwig Studio to let the theme editor initialize for the first time! Then, press OK.", "Run Bitwig Studio", JOptionPane.INFORMATION_MESSAGE);
                 break;
             // case 0: Do nothing if result is 0 (already patched)
         }
@@ -140,13 +140,13 @@ public class Editor extends JFrame {
                 System.out.println("-> Reset to default");
                 boolean minimize = minimizeThemeOnExportCheckBox.isSelected();
                 minimizeThemeOnExportCheckBox.setSelected(false); // Temporarily disable minimize to export all colors, needed to reset to stock values
-                saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
                 minimizeThemeOnExportCheckBox.setSelected(minimize);
             }
         });
 
         selectJar.addActionListener(e -> {
-            int response = JOptionPane.showConfirmDialog(this, "Are you sure you want to select another bitwig.jar? Unsaved changes will be lost.", "Confirm Select JAR", JOptionPane.YES_NO_OPTION);
+            int response = JOptionPane.showConfirmDialog(this, "Unsaved changes will be lost.", "Confirm Select JAR", JOptionPane.YES_NO_OPTION);
             if (response == JOptionPane.YES_OPTION) {
                 setVisible(false);
                 Welcome.selectJar(this);
@@ -155,7 +155,7 @@ public class Editor extends JFrame {
         });
 
         importTheme.addActionListener(e -> {
-            int response = JOptionPane.showConfirmDialog(this, "Importing a theme will overwrite your current changes.\nAll unsaved changes will be lost. Are you sure you want to continue?", "Confirm Import", JOptionPane.YES_NO_OPTION);
+            int response = JOptionPane.showConfirmDialog(this, "All unsaved changes will be lost. Are you sure you want to continue?", "Confirm Import", JOptionPane.YES_NO_OPTION);
             if (response != JOptionPane.YES_OPTION) return;
 
             ThemeChooser themeChooser = new ThemeChooser("Open");
@@ -168,7 +168,7 @@ public class Editor extends JFrame {
                     loadThemeColors(themeChooser.getSelectedFile().getPath());
                 }
                 System.out.println("-> Import theme from: " + themeChooser.getSelectedFile().getPath());
-                saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
             }
         });
         exportTheme.addActionListener(e -> {
@@ -242,7 +242,7 @@ public class Editor extends JFrame {
                             updateModifiedList(item);
                             item.setToolTipText(item.getKey() + ": " + item.getValue());
                             list.repaint();
-                            saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                            saveThemeColors(Main.getVersionConfigPath("theme.bte"));
                             undoRedoManager.printHistory();
                         }
                     }
@@ -269,7 +269,7 @@ public class Editor extends JFrame {
                                 item.setToolTipText(item.getKey() + ": " + item.getValue());
                                 updateModifiedList(item);
                                 list.repaint();
-                                saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
                                 undoRedoManager.printHistory();
                                 break;
                             }
@@ -298,7 +298,7 @@ public class Editor extends JFrame {
                                 item.setToolTipText(item.getKey() + ": " + item.getValue());
                                 updateModifiedList(item);
                                 list.repaint();
-                                saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+                                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
                                 undoRedoManager.printHistory();
                                 break;
                             }
@@ -343,7 +343,7 @@ public class Editor extends JFrame {
         disableGradientCheckBox.addActionListener(e -> {
             boolean isSelected = disableGradientCheckBox.isSelected();
             System.out.println("-> Disable gradient: " + isSelected);
-            saveThemeColors(bitwig_path.replace("bitwig.jar", "theme.bte"));
+            saveThemeColors(Main.getVersionConfigPath("theme.bte"));
         });
 
         alwaysOnTopCheckbox.addActionListener(e -> {
@@ -382,13 +382,13 @@ public class Editor extends JFrame {
         // If not, warn the user that the theme file is missing and create one with default values
         // And wait till the file is created
 
-        String themeFilePath = bitwig_path.replace("bitwig.jar", "default.bte");
+        String themeFilePath = Main.getVersionConfigPath("default.bte");
         System.out.println("Default theme path: " + themeFilePath);
         File themeFile = new File(themeFilePath);
         boolean outOfLoop = true;
         while (!themeFile.exists()) {
             outOfLoop = false;
-            int response = JOptionPane.showConfirmDialog(this, "Default theme color values (default.bte) is not initialized! Please run your patched Bitwig Studio installation to generate it, then press OK.\n\nIf this step fails, try running Bitwig Studio as admin/root.", "'default.bte' Missing", JOptionPane.OK_CANCEL_OPTION);
+            int response = JOptionPane.showConfirmDialog(this, "Default theme color values (default.bte) is not initialized! Please run your patched Bitwig Studio to generate it, then press OK.\n\nIf this step fails, try running Bitwig Studio as admin/root.", "'default.bte' Missing", JOptionPane.OK_CANCEL_OPTION);
             if (response == JOptionPane.CANCEL_OPTION) {
                 setVisible(false);
                 Welcome.selectJar(this);
@@ -405,7 +405,7 @@ public class Editor extends JFrame {
     }
 
     private void loadDefaultThemeColors() {
-        String themeFilePath = bitwig_path.replace("bitwig.jar", "default.bte");
+        String themeFilePath = Main.getVersionConfigPath("default.bte");
         File themeFile = new File(themeFilePath);
 
         if (!themeFile.exists()) {

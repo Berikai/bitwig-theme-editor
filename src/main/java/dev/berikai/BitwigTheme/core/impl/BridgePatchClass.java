@@ -81,58 +81,18 @@ public class BridgePatchClass extends PatchClass {
         int mArgIndex = ((methodNode.access & Opcodes.ACC_STATIC) == 0) ? 1 : 0;
 
         // Get path to "default.bte" file
-        // Here is the corresponding Java code:
-        //        ldc Lcom/bitwig/flt/app/BitwigStudioMain;
-        //        invokevirtual java/lang/Class.getProtectionDomain ()Ljava/security/ProtectionDomain;
-        //        invokevirtual java/security/ProtectionDomain.getCodeSource ()Ljava/security/CodeSource;
-        //        invokevirtual java/security/CodeSource.getLocation ()Ljava/net/URL;
-        //        invokevirtual java/net/URL.toURI ()Ljava/net/URI;
-        //        invokestatic java/nio/file/Paths.get (Ljava/net/URI;)Ljava/nio/file/Path;
-        //        invokeinterface java/nio/file/Path.getParent ()Ljava/nio/file/Path;
-        //        ldc "default.bte"
-        //        invokeinterface java/nio/file/Path.resolve (Ljava/lang/String;)Ljava/nio/file/Path;
-        //        invokeinterface java/nio/file/Path.toString ()Ljava/lang/String;
-        //        astore themePath
+        String defaultBTE = Main.getVersionConfigPath("default.bte");
 
         il.add(new LabelNode());
-        il.add(new LdcInsnNode(Type.getObjectType("com/bitwig/flt/app/BitwigStudioMain")));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getProtectionDomain", "()Ljava/security/ProtectionDomain;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/ProtectionDomain", "getCodeSource", "()Ljava/security/CodeSource;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/CodeSource", "getLocation", "()Ljava/net/URL;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/net/URL", "toURI", "()Ljava/net/URI;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/nio/file/Paths", "get", "(Ljava/net/URI;)Ljava/nio/file/Path;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "getParent", "()Ljava/nio/file/Path;", true));
-        il.add(new LdcInsnNode("default.bte"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "resolve", "(Ljava/lang/String;)Ljava/nio/file/Path;", true));
-        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "toString", "()Ljava/lang/String;", true));
+        il.add(new LdcInsnNode(defaultBTE));
         int defaultPathSlot = methodNode.maxLocals++;
         il.add(new VarInsnNode(Opcodes.ASTORE, defaultPathSlot));
 
         // Get path to "theme.bte" file
-        // Here is the corresponding Java code:
-        //        ldc Lcom/bitwig/flt/app/BitwigStudioMain;
-        //        invokevirtual java/lang/Class.getProtectionDomain ()Ljava/security/ProtectionDomain;
-        //        invokevirtual java/security/ProtectionDomain.getCodeSource ()Ljava/security/CodeSource;
-        //        invokevirtual java/security/CodeSource.getLocation ()Ljava/net/URL;
-        //        invokevirtual java/net/URL.toURI ()Ljava/net/URI;
-        //        invokestatic java/nio/file/Paths.get (Ljava/net/URI;)Ljava/nio/file/Path;
-        //        invokeinterface java/nio/file/Path.getParent ()Ljava/nio/file/Path;
-        //        ldc "theme.bte"
-        //        invokeinterface java/nio/file/Path.resolve (Ljava/lang/String;)Ljava/nio/file/Path;
-        //        invokeinterface java/nio/file/Path.toString ()Ljava/lang/String;
-        //        putstatic ColorClass.themeFilePath Ljava/lang/String;
+        String themeBTE = Main.getVersionConfigPath("theme.bte");
 
         il.add(new LabelNode());
-        il.add(new LdcInsnNode(Type.getObjectType("com/bitwig/flt/app/BitwigStudioMain")));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getProtectionDomain", "()Ljava/security/ProtectionDomain;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/ProtectionDomain", "getCodeSource", "()Ljava/security/CodeSource;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/security/CodeSource", "getLocation", "()Ljava/net/URL;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/net/URL", "toURI", "()Ljava/net/URI;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/nio/file/Paths", "get", "(Ljava/net/URI;)Ljava/nio/file/Path;"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "getParent", "()Ljava/nio/file/Path;", true));
-        il.add(new LdcInsnNode("theme.bte"));
-        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "resolve", "(Ljava/lang/String;)Ljava/nio/file/Path;", true));
-        il.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, "java/nio/file/Path", "toString", "()Ljava/lang/String;", true));
+        il.add(new LdcInsnNode(themeBTE));
         il.add(new FieldInsnNode(Opcodes.PUTSTATIC, PatchClass.mappings.get("ColorClass"), "themeFilePath", "Ljava/lang/String;"));
 
         // Color class doesn't store color names originally

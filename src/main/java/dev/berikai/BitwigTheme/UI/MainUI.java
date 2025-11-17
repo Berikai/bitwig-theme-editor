@@ -17,7 +17,7 @@ public class MainUI extends JFrame {
 
     public static void updateConfig(String bitwigPath) {
         try {
-            File configFile = new File(new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent(), "bte_config.txt");
+            File configFile = new File(Main.configPath, "bte_config.txt");
             if (!configFile.exists()) {
                 configFile.createNewFile();
             }
@@ -30,7 +30,7 @@ public class MainUI extends JFrame {
     }
 
     public static void loadConfig() throws URISyntaxException {
-        File configFile = new File(new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent(), "bte_config.txt");
+        File configFile = new File(Main.configPath, "bte_config.txt");
         if (configFile.exists()) {
             try (Scanner scanner = new Scanner(configFile)) {
                 while (scanner.hasNextLine()) {

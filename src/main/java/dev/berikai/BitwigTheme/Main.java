@@ -20,6 +20,7 @@ import java.util.zip.ZipException;
 public class Main {
     public static String version; // Project version
     public static String bitwigVersion; // Bitwig Studio version, obtained from BitwigClass
+    public static String configPath; // Path to config directory
     public static JarNode jar; // ASM-tree JarNode object for bitwig.jar
     public static boolean isGUI = false; // Whether the app is running with GUI or command line
 
@@ -40,6 +41,10 @@ public class Main {
         System.out.println("Bitwig Theme Editor " + version);
         System.out.println("DISCLAIMER: This is an unofficial free open source 3rd party tool, made with educational purposes only. Author is not responsible for any damage caused by using this tool. Use at your own risk.");
         System.out.println();
+
+        // Initialize config path
+        // (e.g. Windows: C:\Users\<User>\AppData\Roaming\.bitwig-theme-editor, Linux: /home/<User>/.bitwig-theme-editor)
+        initializeConfigPath();
 
         // Run UI, if no argument given
         if (args.length == 0) {
@@ -97,7 +102,8 @@ public class Main {
             System.out.println("Patch successful!");
             System.out.println();
             System.out.println("1. Run Bitwig Studio (run as admin/root if step 2 fails)");
-            System.out.println("2. A file named 'default.bte' will be created in the directory of bitwig.jar");
+            System.out.println("2. A file named 'default.bte' will be created in the directory: ");
+            System.out.println(" -> " + getVersionConfigPath("default.bte"));
             System.out.println("3. Create a file named 'theme.bte' in the same directory");
             System.out.println("4. Add the lines of the color values you want to change, modify, and save");
             System.out.println("5. Click on the 'Dashboard Button' or resize the window to render changes");
@@ -180,5 +186,39 @@ public class Main {
             }
             return 2;
         }
+    }
+
+    private static void initializeConfigPath() {
+        String appDirName = ".bitwig-theme-editor";
+        String os = System.getProperty("os.name").toLowerCase();
+
+        String basePath;
+        if (os.contains("win")) basePath = System.getenv("APPDATA");
+        else basePath = System.getProperty("user.home");
+
+        // File seperator of OS (e.g. Windows: "\", Linux & macOS: "/")
+        String sep = File.separator;
+
+        // Build full directory path
+        String directoryPath = basePath + sep + appDirName;
+
+        // Create directory if it doesn't exist
+        if(new File(directoryPath).mkdirs()) {
+            System.out.println("Created config directory: " + directoryPath);
+        }
+
+        configPath = directoryPath;
+    }
+
+    public static String getVersionConfigPath(String filename) {
+        String directoryPath = configPath + File.separator + bitwigVersion;
+
+        // Create directory if it doesn't exist
+        if(new File(directoryPath).mkdirs()) {
+            System.out.println("Created version config directory: " + directoryPath);
+        }
+
+        return directoryPath + File.separator + filename;
+
     }
 }
