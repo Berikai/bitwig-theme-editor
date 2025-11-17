@@ -25,7 +25,7 @@
         <properties>
           <editable value="false"/>
           <enabled value="true"/>
-          <text value="Welcome to Bitwig Theme Editor!&#10;&#10;Select the bitwig.jar path of your Bitwig Studio installation to edit the theme. &#10;&#10;NOTE: Your bitwig.jar will be patched if it's not already. If it's the first time patching, please backup your original bitwig.jar before continue, just in case."/>
+          <text value="Welcome to Bitwig Theme Editor!&#10;&#10;Select the bitwig.jar of your Bitwig Studio installation to get started."/>
         </properties>
       </component>
     </children>

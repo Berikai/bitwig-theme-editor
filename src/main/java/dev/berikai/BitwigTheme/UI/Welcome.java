@@ -20,7 +20,7 @@ public class Welcome extends JFrame {
         setContentPane(mainPanel);
         setTitle("Bitwig Theme Editor " + Main.version);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(550, 220);
+        setSize(430, 160);
         setLocationRelativeTo(null); // Center the window
         setResizable(false);
 
@@ -89,7 +89,7 @@ public class Welcome extends JFrame {
         welcomeToBitwigThemeTextPane = new JTextPane();
         welcomeToBitwigThemeTextPane.setEditable(false);
         welcomeToBitwigThemeTextPane.setEnabled(true);
-        welcomeToBitwigThemeTextPane.setText("Welcome to Bitwig Theme Editor!\n\nSelect the bitwig.jar path of your Bitwig Studio installation to edit the theme. \n\nNOTE: Your bitwig.jar will be patched if it's not already. If it's the first time patching, please backup your original bitwig.jar before continue, just in case.");
+        welcomeToBitwigThemeTextPane.setText("Welcome to Bitwig Theme Editor!\n\nSelect the bitwig.jar of your Bitwig Studio installation to get started.");
         mainPanel.add(welcomeToBitwigThemeTextPane, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_WANT_GROW, null, new Dimension(150, 50), null, 0, false));
     }
 
