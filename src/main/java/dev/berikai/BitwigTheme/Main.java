@@ -211,7 +211,8 @@ public class Main {
     }
 
     public static String getVersionConfigPath(String filename) {
-        String directoryPath = configPath + File.separator + bitwigVersion;
+        String versionDirName = "versions";
+        String directoryPath = configPath + File.separator + versionDirName + File.separator + bitwigVersion;
 
         // Create directory if it doesn't exist
         if(new File(directoryPath).mkdirs()) {
