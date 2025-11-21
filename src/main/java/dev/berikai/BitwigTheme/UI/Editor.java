@@ -312,18 +312,40 @@ public class Editor extends JFrame {
             });
 
             JTextField textField = (list == list1) ? textField1 : textField2;
+
+            final java.util.List<ColorPanel> allItems = new java.util.ArrayList<>();
             textField.getDocument().addDocumentListener(new DocumentListener() {
                 private void search() {
-                    String searchText = textField.getText().toLowerCase();
-                    for (int i = 0; i < listModel.size(); i++) {
-                        ColorPanel item = listModel.getElementAt(i);
-                        if (item.getKey().toLowerCase().contains(searchText)) {
-                            list.setSelectedIndex(i);
-                            list.ensureIndexIsVisible(i);
-                            return;
+                    String searchText = textField.getText().toLowerCase().trim();
+
+                    if (allItems.isEmpty()) {
+                        for (int i = 0; i < listModel.size(); i++) {
+                            allItems.add(listModel.getElementAt(i));
                         }
                     }
-                    list.clearSelection();
+
+                    listModel.clear();
+
+                    if (searchText.isEmpty()) {
+                        for (ColorPanel item : allItems) {
+                            listModel.addElement(item);
+                        }
+
+                        list.clearSelection();
+                    } else {
+                        for (ColorPanel item : allItems) {
+                            if (item.getKey().toLowerCase().contains(searchText)) {
+                                listModel.addElement(item);
+                            }
+                        }
+
+                        if (listModel.size() > 0) {
+                            list.setSelectedIndex(0);
+                            list.ensureIndexIsVisible(0);
+                        } else {
+                            list.clearSelection();
+                        }
+                    }
                 }
 
                 public void insertUpdate(DocumentEvent e) {
