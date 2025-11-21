@@ -124,13 +124,16 @@ public class Editor extends JFrame {
 
         JMenu helpMenu = new JMenu("Help");
         JMenuItem about = new JMenuItem("About");
+        JMenuItem themes = new JMenuItem("Themes");
         JMenuItem github = new JMenuItem("Github");
         helpMenu.add(about);
+        helpMenu.add(themes);
         helpMenu.addSeparator();
         helpMenu.add(github);
         menuBar.add(helpMenu);
 
         about.addActionListener(e -> showAboutDialog());
+        themes.addActionListener(e -> openWebpage("https://github.com/Berikai/awesome-bitwig-themes"));
         github.addActionListener(e -> openWebpage("https://github.com/berikai/bitwig-theme-editor"));
 
         resetToStock.addActionListener(e -> {
