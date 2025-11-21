@@ -14,6 +14,7 @@ import org.objectweb.asm.tree.FieldNode;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.zip.ZipException;
 
@@ -149,10 +150,34 @@ public class Main {
         }
 
         if (alreadyPatched) {
-            System.out.println("WARNING: Your bitwig.jar is already patched! Skipping...");
+            System.out.println(" -> Your bitwig.jar is already patched :)");
+
+            // If already patched, try to migrate from 2.1.0 version for changing bte path
+            if(((BridgePatchClass) bridgeClass).migrateFromPreviousVersions()) {
+                try {
+                    jar.export(bitwig_path);
+                } catch (IOException e) {
+                    System.out.println("ERROR: Failed to migrate jar. Couldn't write to JAR file.");
+                    System.out.println();
+                    e.printStackTrace();
+                    if(isGUI) {
+                        JOptionPane.showMessageDialog(null,
+                                "Failed to patch jar.\nError: " + e.getMessage(),
+                                "Error!",
+                                JOptionPane.INFORMATION_MESSAGE);
+                    }
+                    return 2;
+                }
+            }
+
             System.out.println();
             return 0;
         }
+
+        System.out.println("WARNING: This is first time patching your bitwig.jar.");
+        System.out.println(" -> A backup of original jar will be created at: " + bitwig_path + ".bak");
+        System.out.println(" -> If anything goes wrong, restore the backup and try again.");
+        System.out.println();
 
         // Write all PatchClasss.mappings elements to console
         // It can be helpful for the folks who want to experiment with the bytecode themselves

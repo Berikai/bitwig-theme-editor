@@ -124,8 +124,19 @@ public class ColorPatchClass extends PatchClass {
 
     // Find the method that returns red value
     protected void findMethodNode() {
+        // Check if the class is already patched by looking for colorName field
+        // We need this step to support re-patching on already patched classes (for handling migration cases)
+        // This is a messy approach, findMethodNode should ideally be idempotent, but oh well...
+        boolean alreadyPatched = false;
+        for (FieldNode field : classNode.fields) {
+            if (field.name.equals("colorName") && field.desc.equals("Ljava/lang/String;")) {
+                alreadyPatched = true;
+                break;
+            }
+        }
+
         // If version is Post 5.2, we don't need to patch getRed(), instead we will create our own getColorInteger()
-        if (colorClassType == ColorPatchClass.TYPE_POST_5_2) {
+        if (colorClassType == ColorPatchClass.TYPE_POST_5_2 && !alreadyPatched) {
             MethodNode getColorIntegerMethod = new MethodNode(Opcodes.ACC_PUBLIC, "getColorInteger", "()I", null, null);
             InsnList il = new InsnList();
 

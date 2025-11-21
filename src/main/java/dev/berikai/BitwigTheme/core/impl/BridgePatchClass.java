@@ -50,6 +50,56 @@ public class BridgePatchClass extends PatchClass {
         }
     }
 
+    // This will migrate previous .bte file location (bitwig.jar path) to new one (~/.bitwig-theme-editor/versions)
+    public boolean migrateFromPreviousVersions() {
+        int successfulMigrations = 0;
+        for (int i = 0; i < methodNode.instructions.size(); i++) {
+            AbstractInsnNode insn = methodNode.instructions.get(i);
+            int op = insn.getOpcode();
+
+            if (op == Opcodes.LDC && ((LdcInsnNode) insn).cst.equals("default.bte")) {
+                ((LdcInsnNode) insn).cst = "!!!DEPRECATED_PATH_PATCHED!!!";
+
+                int varIndex = ((VarInsnNode) methodNode.instructions.get(i + 3)).var;
+                VarInsnNode newLoad = new VarInsnNode(Opcodes.ASTORE, varIndex);
+
+                LdcInsnNode ldcNode = new LdcInsnNode(Main.getVersionConfigPath("default.bte"));
+
+                InsnList il = new InsnList();
+                il.add(ldcNode);
+                il.add(newLoad);
+
+                methodNode.instructions.insert(methodNode.instructions.get(i+3), il);
+
+                System.out.println();
+                System.out.println("WARNING: Migrating previous .bte file paths to new location...");
+                System.out.println(" -> Migrated previous 'default.bte' path to new location: " + Main.getVersionConfigPath("default.bte"));
+                ++successfulMigrations;
+            }
+
+            if (op == Opcodes.LDC && ((LdcInsnNode) insn).cst.equals("theme.bte")) {
+                ((LdcInsnNode) insn).cst = "!!!DEPRECATED_PATH_PATCHED!!!";
+
+                String owner = ((FieldInsnNode) methodNode.instructions.get(i + 3)).owner;
+                String name = ((FieldInsnNode) methodNode.instructions.get(i + 3)).name;
+                String desc = ((FieldInsnNode) methodNode.instructions.get(i + 3)).desc;
+                FieldInsnNode newPut = new FieldInsnNode(Opcodes.PUTSTATIC, owner, name, desc);
+
+                LdcInsnNode ldcNode = new LdcInsnNode(Main.getVersionConfigPath("theme.bte"));
+
+                InsnList il = new InsnList();
+                il.add(ldcNode);
+                il.add(newPut);
+
+                methodNode.instructions.insert(methodNode.instructions.get(i+3), il);
+
+                System.out.println(" -> Migrated previous 'theme.bte' path to new location: " + Main.getVersionConfigPath("theme.bte"));
+                return ++successfulMigrations == 2;
+            }
+        }
+        return false;
+    }
+
     // The code we will inject here to the found method is responsible for printing "default.bte: the reference color theme file"
     // It will export the default color values with their names, in this theme format
     // The file will be exported to the same directory of Bitwig Studio executable
