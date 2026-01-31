@@ -49,6 +49,16 @@ public class Welcome extends JFrame {
             System.out.println("ERROR: JAR file " + bitwig_path + " is not valid or corrupted.");
             System.out.println();
             throw new RuntimeException(e);
+        } catch (OutOfMemoryError e) {
+            String errorMessage = "It seems you are running this app with 32-bit JRE.\n" +
+                    "Please use 64-bit JRE to avoid memory issues.";
+            JOptionPane.showMessageDialog(parent,
+                    errorMessage,
+                    "Error!",
+                    JOptionPane.INFORMATION_MESSAGE);
+            System.out.println("ERROR: OutOfMemoryError. Likely 32-bit JRE.");
+            System.out.println();
+            throw new RuntimeException(e);
         } catch (Exception e) {
             String errorMessage = "JAR File " + bitwig_path + " does not exist or could not be accessed. Try to run as admin/root.";
             JOptionPane.showMessageDialog(parent,
