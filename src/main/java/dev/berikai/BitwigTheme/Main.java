@@ -197,8 +197,34 @@ public class Main {
         // Try exporting and overwriting the jar
         // If the operation succeeds, return 1
         try {
-            jar.export(bitwig_path);
-            return 1;
+            File bitwigFile = new File(bitwig_path);
+            if (bitwigFile.canWrite()) {
+                jar.export(bitwig_path, true);
+                return 1;
+            } else {
+                String os = System.getProperty("os.name").toLowerCase();
+                System.out.println("WARNING: You don't have write permission for " + bitwig_path);
+
+                if (os.contains("linux")) {
+                    return escalateLinux(bitwig_path, jar);
+                } else if (os.contains("mac")) {
+                    return escalateMac(bitwig_path, jar);
+                } else if (os.contains("win")) {
+                    String msg = "You don't have write permission for this file.\nPlease restart this application as Administrator and try again.";
+                    System.out.println("ERROR: " + msg);
+                    if (isGUI) {
+                        JOptionPane.showMessageDialog(null, msg, "Permission Denied", JOptionPane.ERROR_MESSAGE);
+                    }
+                    return 2;
+                } else {
+                     String msg = "You don't have write permission for this file.\nPlease run this application as root/administrator.";
+                    System.out.println("ERROR: " + msg);
+                    if (isGUI) {
+                        JOptionPane.showMessageDialog(null, msg, "Permission Denied", JOptionPane.ERROR_MESSAGE);
+                    }
+                    return 2;
+                }
+            }
         } catch (Exception e) {
             System.out.println("ERROR: Failed to patch jar. Couldn't write to JAR file.");
             System.out.println();
@@ -212,6 +238,105 @@ public class Main {
             return 2;
         }
     }
+
+    private static int escalateLinux(String bitwig_path, JarNode jar) throws IOException, InterruptedException {
+        if (isGUI) {
+            int response = JOptionPane.showConfirmDialog(null,
+                    "You don't have write permission for this file.\n" +
+                            "Do you want to attempt to patch it with root privileges using pkexec?",
+                    "Permission Denied",
+                    JOptionPane.YES_NO_OPTION);
+            if (response != JOptionPane.YES_OPTION) {
+                return 2;
+            }
+        }
+
+        System.out.println(" -> Attempting to use pkexec (Linux) to escalate privileges...");
+        
+        // Create temp file
+        File tempFile = File.createTempFile("bitwig-patched", ".jar");
+        jar.export(tempFile.getAbsolutePath(), false);
+        
+        // Construct command
+        String[] command = {
+            "pkexec",
+            "sh",
+            "-c",
+            "cp \"" + bitwig_path + "\" \"" + bitwig_path + ".bak\" && cp \"" + tempFile.getAbsolutePath() + "\" \"" + bitwig_path + "\""
+        };
+        
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.inheritIO();
+        Process process = pb.start();
+        int exitCode = process.waitFor();
+        
+        if (exitCode == 0) {
+            tempFile.delete();
+            return 1;
+        } else {
+            System.out.println("ERROR: Privilege escalation failed or was cancelled.");
+            if (isGUI) {
+                JOptionPane.showMessageDialog(null,
+                        "Privilege escalation failed or was cancelled.",
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+            tempFile.delete();
+            return 2;
+        }
+    }
+
+    private static int escalateMac(String bitwig_path, JarNode jar) throws IOException, InterruptedException {
+        if (isGUI) {
+            int response = JOptionPane.showConfirmDialog(null,
+                    "You don't have write permission for this file.\n" +
+                            "Do you want to attempt to patch it with administrator privileges?",
+                    "Permission Denied",
+                    JOptionPane.YES_NO_OPTION);
+            if (response != JOptionPane.YES_OPTION) {
+                return 2;
+            }
+        }
+
+        System.out.println(" -> Attempting to use osascript (macOS) to escalate privileges...");
+
+        // Create temp file
+        File tempFile = File.createTempFile("bitwig-patched", ".jar");
+        jar.export(tempFile.getAbsolutePath(), false);
+
+        // Construct command
+        // We use AppleScript to run shell script with administrator privileges
+        // cp "src" "dst.bak" && cp "temp" "dst"
+        String shellScript = "cp \\\"" + bitwig_path + "\\\" \\\"" + bitwig_path + ".bak\\\" && cp \\\"" + tempFile.getAbsolutePath() + "\\\" \\\"" + bitwig_path + "\\\"";
+        String appleScript = "do shell script \"" + shellScript + "\" with administrator privileges";
+
+        String[] command = {
+                "osascript",
+                "-e",
+                appleScript
+        };
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.inheritIO();
+        Process process = pb.start();
+        int exitCode = process.waitFor();
+
+        if (exitCode == 0) {
+            tempFile.delete();
+            return 1;
+        } else {
+            System.out.println("ERROR: Privilege escalation failed or was cancelled.");
+            if (isGUI) {
+                JOptionPane.showMessageDialog(null,
+                        "Privilege escalation failed or was cancelled.",
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+            tempFile.delete();
+            return 2;
+        }
+    }
+
 
     private static void initializeConfigPath() {
         String appDirName = ".bitwig-theme-editor";

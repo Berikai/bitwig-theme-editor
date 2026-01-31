@@ -81,13 +81,19 @@ public class JarNode {
 
     // If no argument is given, export modified jar to the same path as input jar, overwriting it
     public void export() throws IOException {
-        export(inputPath);
+        export(inputPath, true);
     }
 
-    // Export modified jar to specified path
+    // Export modified jar to specified path, with optional backup
     public void export(String path) throws IOException {
+        export(path, true);
+    }
+
+    public void export(String path, boolean backup) throws IOException {
         // Backup original jar file, just in case
-        Files.copy(Paths.get(inputPath), Paths.get(inputPath + ".bak"), StandardCopyOption.REPLACE_EXISTING);
+        if (backup && Files.exists(Paths.get(path))) {
+            Files.copy(Paths.get(path), Paths.get(path + ".bak"), StandardCopyOption.REPLACE_EXISTING);
+        }
 
         // Create output ZipOutputStream
         ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(path));
