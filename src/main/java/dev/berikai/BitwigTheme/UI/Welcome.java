@@ -93,14 +93,14 @@ public class Welcome extends JFrame {
     private void $$$setupUI$$$() {
         mainPanel = new JPanel();
         mainPanel.setLayout(new GridLayoutManager(2, 1, new Insets(10, 10, 10, 10), -1, -1));
-        letSGoButton = new JButton();
-        letSGoButton.setText("Select bitwig.jar");
-        mainPanel.add(letSGoButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         welcomeToBitwigThemeTextPane = new JTextPane();
         welcomeToBitwigThemeTextPane.setEditable(false);
         welcomeToBitwigThemeTextPane.setEnabled(true);
         welcomeToBitwigThemeTextPane.setText("Welcome to Bitwig Theme Editor!\n\nSelect the bitwig.jar of your Bitwig Studio installation to get started.");
         mainPanel.add(welcomeToBitwigThemeTextPane, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_WANT_GROW, null, new Dimension(150, 50), null, 0, false));
+        letSGoButton = new JButton();
+        letSGoButton.setText("Select bitwig.jar");
+        mainPanel.add(letSGoButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
