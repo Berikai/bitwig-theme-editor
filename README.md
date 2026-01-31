@@ -9,7 +9,7 @@ A theme editor for **Bitwig Studio**, written in Java.
 ### Requirements
 
 - Bitwig Studio 4.x, 5.x or 6.x
-- **Java 8** or later
+- **Java 8** or later (64-bit)
 
 ### Usage
 
