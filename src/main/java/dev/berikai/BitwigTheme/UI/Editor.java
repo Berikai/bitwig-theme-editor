@@ -50,6 +50,11 @@ public class Editor extends JFrame {
     private boolean isBitwig6OrNewer = false;
     private final String bitwig_path;
 
+    private String currentThemePath;
+    public String getCurrentThemePath() {
+        return currentThemePath;
+    }
+
     private final UndoRedoManager undoRedoManager = new UndoRedoManager(50);
 
     public Editor(String bitwig_path, int result) {
@@ -392,6 +397,9 @@ public class Editor extends JFrame {
                 showCryptoDialog();
             }
         });
+        
+        // Add ThemeBrowser tab
+        tabbedPane1.addTab("Community Themes", new ThemeBrowser(this));
     }
 
     private void openWebpage(String uri) {
@@ -508,7 +516,7 @@ public class Editor extends JFrame {
         modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
     }
 
-    private void loadThemeColors(String themeFilePath) {
+    public void loadThemeColors(String themeFilePath) {
         // Similar to loadDefaultThemeColors but loads from a user-selected theme file
         File themeFile = new File(themeFilePath);
         if (!themeFile.exists()) {
@@ -559,9 +567,12 @@ public class Editor extends JFrame {
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
+        
+        this.currentThemePath = themeFilePath;
+        System.out.println("-> Loaded theme from: " + themeFilePath);
     }
 
-    private void loadThemeColorsFromJSON(String themeFilePath) {
+    public void loadThemeColorsFromJSON(String themeFilePath) {
         // Similar to loadDefaultThemeColors but loads from a user-selected theme file
         File themeFile = new File(themeFilePath);
         if (!themeFile.exists()) {
@@ -610,6 +621,21 @@ public class Editor extends JFrame {
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
+
+        this.currentThemePath = themeFilePath;
+        System.out.println("-> Loaded theme from (JSON): " + themeFilePath);
+    }
+    
+    public void loadTheme(String path) {
+        loadDefaultThemeColors();
+        if (path.endsWith(".json")) {
+             loadThemeColorsFromJSON(path);
+        } else {
+             loadThemeColors(path);
+        }
+        
+        // Persist the selected theme
+        saveThemeColors(Main.getVersionConfigPath("theme.bte"));
     }
 
     private void updateModifiedList(ColorPanel panel) {
