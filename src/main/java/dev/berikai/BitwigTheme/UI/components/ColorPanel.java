@@ -92,7 +92,15 @@ public class ColorPanel extends JPanel {
                     + hex.charAt(3) + hex.charAt(3);
         }
 
-        long value = Long.parseLong(hex, 16);
+        long value;
+
+        try {
+            value = Long.parseLong(hex, 16);
+        } catch (NumberFormatException e) {
+            // Fallback to black if parsing fails, though ideally should handle this better!
+            hex = "000000";
+            value = Long.parseLong(hex, 16);
+        }
 
         int r, g, b, a;
 
