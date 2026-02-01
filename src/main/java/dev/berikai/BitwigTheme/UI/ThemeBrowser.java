@@ -90,6 +90,7 @@ public class ThemeBrowser extends JPanel {
                 allThemes = parseThemes(markdown);
                 
                 checkInstalledStatus(allThemes);
+                sortThemes(allThemes);
 
                 SwingUtilities.invokeLater(() -> {
                     searchField.setText("");
@@ -114,7 +115,19 @@ public class ThemeBrowser extends JPanel {
                 .collect(Collectors.toList());
         
         checkInstalledStatus(filtered); // Re-check status in case selection changed
+        sortThemes(filtered);
         renderThemes(filtered);
+    }
+    
+    private void sortThemes(List<ThemeEntry> themes) {
+        Collections.sort(themes, (t1, t2) -> {
+            // Priority 1: Selected
+            if (t1.isSelected != t2.isSelected) return t1.isSelected ? -1 : 1;
+            // Priority 2: Installed
+            if (t1.isInstalled != t2.isInstalled) return t1.isInstalled ? -1 : 1;
+            // Priority 3: Original Order (Stable sort logic)
+            return 0;
+        });
     }
     
     private String fetchMarkdown(String urlString) throws IOException {
