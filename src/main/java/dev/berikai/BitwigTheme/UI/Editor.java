@@ -68,17 +68,14 @@ public class Editor extends JFrame {
         setContentPane(mainPanel);
         setTitle("Bitwig Theme Editor " + Main.version);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(430, 500);
-        setMinimumSize(new Dimension(430, 360));
-        setLocationRelativeTo(null); // Center the window
         setAlwaysOnTop(true);
-        //setResizable(false);
-
+        setMinimumSize(new Dimension(430, 500));
         initializeUI();
-
         loadDefaultThemeColors();
         loadThemeColors(Main.getThemeConfigPath());
 
+        pack();
+        setLocationRelativeTo(null); // Center the window
         setVisible(true);
     }
 

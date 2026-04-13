@@ -20,9 +20,10 @@ public class Welcome extends JFrame {
         setContentPane(mainPanel);
         setTitle("Bitwig Theme Editor " + Main.version);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(430, 160);
+        setMinimumSize(new Dimension(500, 140));
+        pack();
         setLocationRelativeTo(null); // Center the window
-        setResizable(false);
+        setResizable(true); // Allow resizing as a fallback for scaling issues
 
         letSGoButton.addActionListener(e -> {
             selectJar(this);
@@ -97,7 +98,7 @@ public class Welcome extends JFrame {
         welcomeToBitwigThemeTextPane.setEditable(false);
         welcomeToBitwigThemeTextPane.setEnabled(true);
         welcomeToBitwigThemeTextPane.setText("Welcome to Bitwig Theme Editor!\n\nSelect the bitwig.jar of your Bitwig Studio installation to get started.");
-        mainPanel.add(welcomeToBitwigThemeTextPane, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_WANT_GROW, null, new Dimension(150, 50), null, 0, false));
+        mainPanel.add(welcomeToBitwigThemeTextPane, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(400, -1), null, 0, false));
         letSGoButton = new JButton();
         letSGoButton.setText("Select bitwig.jar");
         mainPanel.add(letSGoButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
