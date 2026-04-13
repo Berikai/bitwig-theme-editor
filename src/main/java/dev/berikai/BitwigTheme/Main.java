@@ -31,7 +31,7 @@ public class Main {
         String jarName = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()).getName();
 
         // Print usage
-        System.out.println("Usage:  java -jar " + jarName + " <bitwig-jar-path>");
+        System.out.println("Usage:  java -jar " + jarName + " [--global-theme] <bitwig-jar-path>");
     }
 
     public static void main(String[] args) throws Exception {
@@ -72,16 +72,26 @@ public class Main {
             return;
         }
 
-        // Print usage, if argument count isn't 1
-        if (args.length != 1) {
+        // Parse arguments
+        String bitwig_path = null;
+        for (String arg : args) {
+            if (arg.equals("--global-theme")) {
+                isGlobalTheme = true;
+            } else if (bitwig_path == null) {
+                bitwig_path = arg;
+            } else {
+                bitwig_path = null; // Too many arguments
+                break;
+            }
+        }
+
+        // Print usage, if argument is invalid
+        if (bitwig_path == null) {
             System.out.println("ERROR: Wrong usage!");
             System.out.println();
             printUsage();
             return;
         }
-
-        // Get bitwig.jar path from the first argument
-        String bitwig_path = args[0];
 
         // Create an ASM-tree JarNode object for bytecode manipulation
         try {
