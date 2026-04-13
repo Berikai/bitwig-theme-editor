@@ -52,52 +52,67 @@ public class BridgePatchClass extends PatchClass {
 
     // This will migrate previous .bte file location (bitwig.jar path) to new one (~/.bitwig-theme-editor/versions)
     public boolean migrateFromPreviousVersions() {
-        int successfulMigrations = 0;
+        boolean madeChanges = false;
+        String newDefaultPath = Main.getVersionConfigPath("default.bte");
+        String newThemePath = Main.getThemeConfigPath();
+
         for (int i = 0; i < methodNode.instructions.size(); i++) {
             AbstractInsnNode insn = methodNode.instructions.get(i);
             int op = insn.getOpcode();
 
-            if (op == Opcodes.LDC && ((LdcInsnNode) insn).cst.equals("default.bte")) {
-                ((LdcInsnNode) insn).cst = "!!!DEPRECATED_PATH_PATCHED!!!";
+            if (op == Opcodes.LDC && insn instanceof LdcInsnNode) {
+                String cst = ((LdcInsnNode) insn).cst.toString();
 
-                int varIndex = ((VarInsnNode) methodNode.instructions.get(i + 3)).var;
-                VarInsnNode newLoad = new VarInsnNode(Opcodes.ASTORE, varIndex);
+                if (cst.equals("default.bte")) {
+                    ((LdcInsnNode) insn).cst = "!!!DEPRECATED_PATH_PATCHED!!!";
 
-                LdcInsnNode ldcNode = new LdcInsnNode(Main.getVersionConfigPath("default.bte"));
+                    int varIndex = ((VarInsnNode) methodNode.instructions.get(i + 3)).var;
+                    VarInsnNode newLoad = new VarInsnNode(Opcodes.ASTORE, varIndex);
 
-                InsnList il = new InsnList();
-                il.add(ldcNode);
-                il.add(newLoad);
+                    LdcInsnNode ldcNode = new LdcInsnNode(newDefaultPath);
 
-                methodNode.instructions.insert(methodNode.instructions.get(i+3), il);
+                    InsnList il = new InsnList();
+                    il.add(ldcNode);
+                    il.add(newLoad);
 
-                System.out.println();
-                System.out.println("WARNING: Migrating previous .bte file paths to new location...");
-                System.out.println(" -> Migrated previous 'default.bte' path to new location: " + Main.getVersionConfigPath("default.bte"));
-                ++successfulMigrations;
-            }
+                    methodNode.instructions.insert(methodNode.instructions.get(i+3), il);
 
-            if (op == Opcodes.LDC && ((LdcInsnNode) insn).cst.equals("theme.bte")) {
-                ((LdcInsnNode) insn).cst = "!!!DEPRECATED_PATH_PATCHED!!!";
+                    System.out.println();
+                    System.out.println("WARNING: Migrating previous .bte file paths to new location...");
+                    System.out.println(" -> Migrated previous 'default.bte' path to new location: " + newDefaultPath);
+                    madeChanges = true;
+                } else if (cst.equals("theme.bte")) {
+                    ((LdcInsnNode) insn).cst = "!!!DEPRECATED_PATH_PATCHED!!!";
 
-                String owner = ((FieldInsnNode) methodNode.instructions.get(i + 3)).owner;
-                String name = ((FieldInsnNode) methodNode.instructions.get(i + 3)).name;
-                String desc = ((FieldInsnNode) methodNode.instructions.get(i + 3)).desc;
-                FieldInsnNode newPut = new FieldInsnNode(Opcodes.PUTSTATIC, owner, name, desc);
+                    String owner = ((FieldInsnNode) methodNode.instructions.get(i + 3)).owner;
+                    String name = ((FieldInsnNode) methodNode.instructions.get(i + 3)).name;
+                    String desc = ((FieldInsnNode) methodNode.instructions.get(i + 3)).desc;
+                    FieldInsnNode newPut = new FieldInsnNode(Opcodes.PUTSTATIC, owner, name, desc);
 
-                LdcInsnNode ldcNode = new LdcInsnNode(Main.getVersionConfigPath("theme.bte"));
+                    LdcInsnNode ldcNode = new LdcInsnNode(newThemePath);
 
-                InsnList il = new InsnList();
-                il.add(ldcNode);
-                il.add(newPut);
+                    InsnList il = new InsnList();
+                    il.add(ldcNode);
+                    il.add(newPut);
 
-                methodNode.instructions.insert(methodNode.instructions.get(i+3), il);
+                    methodNode.instructions.insert(methodNode.instructions.get(i+3), il);
 
-                System.out.println(" -> Migrated previous 'theme.bte' path to new location: " + Main.getVersionConfigPath("theme.bte"));
-                return ++successfulMigrations == 2;
+                    System.out.println(" -> Migrated previous 'theme.bte' path to new location: " + newThemePath);
+                    madeChanges = true;
+                } else if (cst.endsWith("default.bte") && !cst.equals("!!!DEPRECATED_PATH_PATCHED!!!") && !cst.equals(newDefaultPath)) {
+                    // It's a full path but not matching current desired default.bte
+                    ((LdcInsnNode) insn).cst = newDefaultPath;
+                    System.out.println(" -> Updated 'default.bte' path to: " + newDefaultPath);
+                    madeChanges = true;
+                } else if (cst.endsWith("theme.bte") && !cst.equals("!!!DEPRECATED_PATH_PATCHED!!!") && !cst.equals(newThemePath)) {
+                    // It's a full path but not matching current desired theme.bte
+                    ((LdcInsnNode) insn).cst = newThemePath;
+                    System.out.println(" -> Updated 'theme.bte' path to: " + newThemePath);
+                    madeChanges = true;
+                }
             }
         }
-        return false;
+        return madeChanges;
     }
 
     // The code we will inject here to the found method is responsible for printing "default.bte: the reference color theme file"
@@ -139,7 +154,7 @@ public class BridgePatchClass extends PatchClass {
         il.add(new VarInsnNode(Opcodes.ASTORE, defaultPathSlot));
 
         // Get path to "theme.bte" file
-        String themeBTE = Main.getVersionConfigPath("theme.bte");
+        String themeBTE = Main.getThemeConfigPath();
 
         il.add(new LabelNode());
         il.add(new LdcInsnNode(themeBTE));

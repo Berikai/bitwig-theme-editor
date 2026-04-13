@@ -77,7 +77,7 @@ public class Editor extends JFrame {
         initializeUI();
 
         loadDefaultThemeColors();
-        loadThemeColors(Main.getVersionConfigPath("theme.bte"));
+        loadThemeColors(Main.getThemeConfigPath());
 
         setVisible(true);
     }
@@ -121,8 +121,25 @@ public class Editor extends JFrame {
 
         JMenu editorMenu = new JMenu("Editor");
         JMenuItem resetToStock = new JMenuItem("Reset to default");
-        JMenuItem selectJar = new JMenuItem("Select/Patch bitwig.jar");
+        JMenuItem selectJar = new JMenuItem("Re-patch bitwig.jar");
+        JCheckBoxMenuItem globalTheme = new JCheckBoxMenuItem("Enable global theme file");
+        globalTheme.setState(Main.isGlobalTheme);
+        globalTheme.addActionListener(e -> {
+            boolean isSelected = globalTheme.getState();
+            Main.isGlobalTheme = isSelected;
+            dev.berikai.BitwigTheme.UI.MainUI.updateConfig(bitwig_path);
+
+            loadTheme(Main.getThemeConfigPath());
+
+            int response = JOptionPane.showConfirmDialog(this, "To apply this change for Bitwig Studio, bitwig.jar needs to be re-patched with this setting. Do you want to repatch it now?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if (response == JOptionPane.YES_OPTION) {
+                Main.applyPatch(bitwig_path, Main.jar);
+            }
+        });
+
         editorMenu.add(resetToStock);
+        editorMenu.addSeparator();
+        editorMenu.add(globalTheme);
         editorMenu.addSeparator();
         editorMenu.add(selectJar);
         menuBar.add(editorMenu);
@@ -148,7 +165,7 @@ public class Editor extends JFrame {
                 System.out.println("-> Reset to default");
                 boolean minimize = minimizeThemeOnExportCheckBox.isSelected();
                 minimizeThemeOnExportCheckBox.setSelected(false); // Temporarily disable minimize to export all colors, needed to reset to stock values
-                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
+                saveThemeColors(Main.getThemeConfigPath());
                 minimizeThemeOnExportCheckBox.setSelected(minimize);
             }
         });
@@ -176,7 +193,7 @@ public class Editor extends JFrame {
                     loadThemeColors(themeChooser.getSelectedFile().getPath());
                 }
                 System.out.println("-> Import theme from: " + themeChooser.getSelectedFile().getPath());
-                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
+                saveThemeColors(Main.getThemeConfigPath());
             }
         });
         exportTheme.addActionListener(e -> {
@@ -250,7 +267,7 @@ public class Editor extends JFrame {
                             updateModifiedList(item);
                             item.setToolTipText(item.getKey() + ": " + item.getValue());
                             list.repaint();
-                            saveThemeColors(Main.getVersionConfigPath("theme.bte"));
+                            saveThemeColors(Main.getThemeConfigPath());
                             undoRedoManager.printHistory();
                         }
                     }
@@ -277,7 +294,7 @@ public class Editor extends JFrame {
                                 item.setToolTipText(item.getKey() + ": " + item.getValue());
                                 updateModifiedList(item);
                                 list.repaint();
-                                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
+                                saveThemeColors(Main.getThemeConfigPath());
                                 undoRedoManager.printHistory();
                                 break;
                             }
@@ -306,7 +323,7 @@ public class Editor extends JFrame {
                                 item.setToolTipText(item.getKey() + ": " + item.getValue());
                                 updateModifiedList(item);
                                 list.repaint();
-                                saveThemeColors(Main.getVersionConfigPath("theme.bte"));
+                                saveThemeColors(Main.getThemeConfigPath());
                                 undoRedoManager.printHistory();
                                 break;
                             }
@@ -373,7 +390,7 @@ public class Editor extends JFrame {
         disableGradientCheckBox.addActionListener(e -> {
             boolean isSelected = disableGradientCheckBox.isSelected();
             System.out.println("-> Disable gradient: " + isSelected);
-            saveThemeColors(Main.getVersionConfigPath("theme.bte"));
+            saveThemeColors(Main.getThemeConfigPath());
         });
 
         alwaysOnTopCheckbox.addActionListener(e -> {
@@ -635,7 +652,7 @@ public class Editor extends JFrame {
         }
         
         // Persist the selected theme
-        saveThemeColors(Main.getVersionConfigPath("theme.bte"));
+        saveThemeColors(Main.getThemeConfigPath());
     }
 
     private void updateModifiedList(ColorPanel panel) {

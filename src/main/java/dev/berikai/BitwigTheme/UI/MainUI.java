@@ -22,7 +22,7 @@ public class MainUI extends JFrame {
                 configFile.createNewFile();
             }
             try (java.io.FileWriter writer = new java.io.FileWriter(configFile)) {
-                writer.write("# Bitwig Theme Editor configuration file\n" + "bitwig_path=" + bitwigPath + "\n");
+                writer.write("# Bitwig Theme Editor configuration file\n" + "bitwig_path=" + bitwigPath + "\n" + "global_theme=" + Main.isGlobalTheme + "\n");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -33,6 +33,7 @@ public class MainUI extends JFrame {
         File configFile = new File(Main.configPath, "bte_config.txt");
         if (configFile.exists()) {
             try (Scanner scanner = new Scanner(configFile)) {
+                String bitwigPath = null;
                 while (scanner.hasNextLine()) {
                     String line = scanner.nextLine();
                     // Process the line as needed
@@ -42,12 +43,17 @@ public class MainUI extends JFrame {
                         String value = parts[1].trim();
                         // Store or use the key-value pair as needed
                         if(key.equals("bitwig_path")) {
-                            Main.jar = new JarNode(value);
-                            final int result = applyPatch(value, Main.jar);
-                            new Editor(value, result);
-                            return;
+                            bitwigPath = value;
+                        } else if (key.equals("global_theme")) {
+                            Main.isGlobalTheme = Boolean.parseBoolean(value);
                         }
                     }
+                }
+                if (bitwigPath != null) {
+                    Main.jar = new JarNode(bitwigPath);
+                    final int result = applyPatch(bitwigPath, Main.jar);
+                    new Editor(bitwigPath, result);
+                    return;
                 }
             } catch (Exception e) {
                 e.printStackTrace();

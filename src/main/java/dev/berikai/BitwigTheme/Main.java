@@ -24,6 +24,7 @@ public class Main {
     public static String configPath; // Path to config directory
     public static JarNode jar; // ASM-tree JarNode object for bitwig.jar
     public static boolean isGUI = false; // Whether the app is running with GUI or command line
+    public static boolean isGlobalTheme = false; // Whether to use a global theme file instead of version-specific
 
     private static void printUsage() throws URISyntaxException {
         // Get bitwig-theme-editor-x.x.x.jar location
@@ -371,5 +372,13 @@ public class Main {
 
         return directoryPath + File.separator + filename;
 
+    }
+
+    public static String getThemeConfigPath() {
+        if (isGlobalTheme) {
+            return configPath + File.separator + "theme.bte";
+        } else {
+            return getVersionConfigPath("theme.bte");
+        }
     }
 }
