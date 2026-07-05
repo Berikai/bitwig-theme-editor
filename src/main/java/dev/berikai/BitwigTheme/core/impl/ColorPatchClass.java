@@ -1351,7 +1351,7 @@ public class ColorPatchClass extends PatchClass {
                 int idx = line.indexOf(": ");
                 if (idx == -1) continue;
                 String hex = line.substring(idx + 2).split("//")[0].trim();
-                if ((line = line.trim()).startsWith("//") || line.isEmpty() || !hex.startsWith("#") || this.colorName == null || !line.startsWith(this.colorName)) continue;
+                if ((line = line.trim()).startsWith("//") || line.isEmpty() || !hex.startsWith("#") || this.colorName == null || !line.startsWith(this.colorName + ": ")) continue;
                 if ((hex = hex.substring(1)).length() == 3) {
                     r = (float)Integer.parseInt(hex.substring(0, 1) + hex.substring(0, 1), 16) / 255.0f;
                     g = (float)Integer.parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16) / 255.0f;
