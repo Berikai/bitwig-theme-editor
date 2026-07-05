@@ -496,7 +496,7 @@ public class ColorPatchClass extends PatchClass {
         int hexSlot = methodNode.maxLocals++;
         il.add(new VarInsnNode(Opcodes.ASTORE, hexSlot));
 
-        // "if ((line = line.trim()).startsWith("//") || line.isEmpty() || !hex.startsWith("#") || this.colorName == null || !line.startsWith(this.colorName)) continue;"
+        // "if ((line = line.trim()).startsWith("//") || line.isEmpty() || !hex.startsWith("#") || this.colorName == null || !line.startsWith(this.colorName + ": ")) continue;"
         // This line is really complex in terms of bytecode control flow
         // Here is the corresponding bytecode:
         //        aload line
@@ -519,6 +519,8 @@ public class ColorPatchClass extends PatchClass {
         //        aload line
         //        aload this
         //        getfield gPj.colorName Ljava/lang/String;
+        //        ldc ": "
+        //        invokevirtual java/lang/String.concat (Ljava/lang/String;)Ljava/lang/String;
         //        invokevirtual java/lang/String.startsWith (Ljava/lang/String;)Z
         //        ifne J
         //        goto tryStart_B
@@ -546,6 +548,8 @@ public class ColorPatchClass extends PatchClass {
         il.add(new VarInsnNode(Opcodes.ALOAD, lineSlot));
         il.add(new VarInsnNode(Opcodes.ALOAD, 0/*this*/));
         il.add(new FieldInsnNode(Opcodes.GETFIELD, PatchClass.mappings.get("ColorClass"), "colorName", "Ljava/lang/String;"));
+        il.add(new LdcInsnNode(": "));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "concat", "(Ljava/lang/String;)Ljava/lang/String;"));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "startsWith", "(Ljava/lang/String;)Z"));
         il.add(new JumpInsnNode(Opcodes.IFNE, labelNode_J));
         il.add(new JumpInsnNode(Opcodes.GOTO, tryStart_B));
