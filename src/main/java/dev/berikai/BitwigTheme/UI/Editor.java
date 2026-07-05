@@ -491,18 +491,6 @@ public class Editor extends JFrame {
 
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
-                    if (isBitwig6OrNewer) {
-                        // Skip buggy colors for Bitwig 6.0 or newer
-                        if (
-                                parts[0].equals("Clip Automation Button Color") ||
-                                        parts[0].equals("Clip Content Automation Stroke Color") ||
-                                        parts[0].equals("Clip Content Automation Fill Color") ||
-                                        parts[0].equals("Clip Expression Background Color")
-                        ) {
-                            System.out.println("-> Skipping buggy color for Bitwig >=6.0: " + parts[0]);
-                            continue;
-                        }
-                    }
                     if (parts[0].equals("Gradient")) {
                         disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
