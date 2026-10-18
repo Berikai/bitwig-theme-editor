@@ -15,11 +15,13 @@ A theme editor for **Bitwig Studio**, written in Java.
 
 Simple steps to get started:
 
-- **Step1:** Run *bitwig-theme-editor.jar*
+- **Step 1:** Run *bitwig-theme-editor.jar*
 
-- **Step2:** Click on the "Select bitwig.jar" button to choose your Bitwig Studio installation's `bitwig.jar` file.
+- **Step 2:** Click on the "Select bitwig.jar" button to choose your Bitwig Studio installation's `bitwig.jar` file.
 
-- **Step3:** [Download a theme](https://github.com/Berikai/awesome-bitwig-themes), or create your own using the editor.
+- **Step 3:** [Download a theme](https://github.com/Berikai/awesome-bitwig-themes), or create your own using the editor.
+
+- **OPTIONAL:** Batch-edit all color values of an existing theme via Polarity's [bitwig-theme-editor-helper](https://polarity.github.io/bitwig-theme-editor-helper/main.html).
 
 ## More About
 
