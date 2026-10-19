@@ -14,6 +14,8 @@ public class BridgePatchClass extends PatchClass {
     // Because it's method, **which is also what we are looking for**, is being called once for each element from UI element initialization methods to initialize related colors
     // At least that's what I interpret that is happening, it's something like that
 
+    protected MethodNode resolveMethodNode;
+
     public BridgePatchClass(HashMap<String, ClassNode> classNodes) {
         // Call super class constructor
         super(classNodes, "ColorBridgeClass");
@@ -26,6 +28,21 @@ public class BridgePatchClass extends PatchClass {
         if (classNode == null) {
             System.out.println("ERROR: ColorBridge class not found. Your Bitwig Studio version may not be supported.");
             System.out.println(" -> Known working versions: 4.x, 5.x, 6.x");
+        }
+
+        // Add targetColor field to ColorBridgeClass if not present
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+        if (classNode != null && colorClassName != null) {
+            boolean hasTargetColor = false;
+            for (FieldNode f : classNode.fields) {
+                if (f.name.equals("targetColor")) {
+                    hasTargetColor = true;
+                    break;
+                }
+            }
+            if (!hasTargetColor) {
+                classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC, "targetColor", "L" + colorClassName + ";", null, null));
+            }
         }
 
         // Find the method node that we will be injecting code into
@@ -46,6 +63,20 @@ public class BridgePatchClass extends PatchClass {
                 PatchClass.mappings.put("ColorBridgeClass.addColorToUI", this.methodNode.name);
 
                 break;
+            }
+        }
+
+        // Also find resolveMethodNode: public ColorClass <name>(ColorClass parentBg)
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+        if (colorClassName != null && classNode != null) {
+            String colorDesc = "L" + colorClassName + ";";
+            String resolveDesc = "(" + colorDesc + ")" + colorDesc;
+            for (MethodNode mn : classNode.methods) {
+                if ((mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals(resolveDesc)) {
+                    this.resolveMethodNode = mn;
+                    PatchClass.mappings.put("ColorBridgeClass.resolveColor", mn.name);
+                    break;
+                }
             }
         }
     }
@@ -136,6 +167,11 @@ public class BridgePatchClass extends PatchClass {
 
         // Insert new instructions before return
         methodNode.instructions.insertBefore(ret, exportIl);
+
+        // Patch resolve method to allow overriding relative/Mode-2 colors (e.g. Knob Body, Issue #32)
+        if (resolveMethodNode != null) {
+            patchResolveMethod();
+        }
     }
 
     // --------- Bytecode writing section ---------
@@ -172,6 +208,12 @@ public class BridgePatchClass extends PatchClass {
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex + 2)); // Load colorInstance (3rd argument, index 2)
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex)); // Load colorName (1st argument, index 0)
         il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "colorName", "Ljava/lang/String;"));
+
+        // Also save colorInstance onto ColorBridgeClass instance: this.targetColor = colorInstance;
+        il.add(new LabelNode());
+        il.add(new VarInsnNode(Opcodes.ALOAD, 0)); // this
+        il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex + 2)); // colorInstance
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, classNode.name, "targetColor", "L" + PatchClass.mappings.get("ColorClass") + ";"));
 
         // Now, we need to create a file object for "default.bte"
         // So, we need to run "File file = new File("default.bte");"
@@ -511,6 +553,27 @@ public class BridgePatchClass extends PatchClass {
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
 
+        // Add default entries for Note FX Chains (1 to 8)
+        String[] defaultNoteFXColors = new String[] {
+            "Note FX Chain 1: #808080",
+            "Note FX Chain 2: #406a80",
+            "Note FX Chain 3: #40804a",
+            "Note FX Chain 4: #808040",
+            "Note FX Chain 5: #80404a",
+            "Note FX Chain 6: #6a4080",
+            "Note FX Chain 7: #406080",
+            "Note FX Chain 8: #408055"
+        };
+        for (String fxEntry : defaultNoteFXColors) {
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new LdcInsnNode(fxEntry));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+        }
+
         // Here is the java code:
         //                if ("track".equals(colorName)) {
         //                    writer.write("// <end>");
@@ -703,5 +766,87 @@ public class BridgePatchClass extends PatchClass {
                 e.printStackTrace();
             }
         */
+    }
+
+    private void patchResolveMethod() {
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+        String getColorMethod = PatchClass.mappings.get("ColorClass.getColorMethod");
+        String getColorDesc = PatchClass.mappings.get("ColorClass.getColorDesc");
+
+        if (colorClassName == null || getColorMethod == null || getColorDesc == null) {
+            return;
+        }
+
+        // In Bitwig Studio, elements like "Knob Body" use Mode 2 ("Same as background")
+        // In this mode, Bitwig ignores the base color and calculates relative brightness from the parent container's background color
+        // This causes knobs on different devices (like Polysynth vs Phase-4) to look completely different even when given the same hex (#32)
+        // Here, we check if the user explicitly customized this color in theme.bte (targetColor.isCustomized == true)
+        // If they did, we return targetColor directly, allowing custom knob colors to work cleanly across all devices!
+        // If they didn't customize it, we fall back to Bitwig's original relative calculation
+        //
+        // Here is the java code:
+        //    if (this.targetColor != null) {
+        //        this.targetColor.getColorInteger(); // trigger theme reload/fetch
+        //        if (this.targetColor.isCustomized) {
+        //            return this.targetColor;
+        //        }
+        //    }
+        //
+        // And, here is the corresponding bytecode:
+        //    aload_0
+        //    getfield ColorBridgeClass.targetColor LColorClass;
+        //    dup
+        //    ifnull proceedLabel
+        //    dup
+        //    invokevirtual ColorClass.getColorInteger ()I
+        //    pop
+        //    getfield ColorClass.isCustomized Z
+        //    ifeq notCustomizedLabel
+        //    aload_0
+        //    getfield ColorBridgeClass.targetColor LColorClass;
+        //    areturn
+        //  notCustomizedLabel:
+        //    goto skipPopLabel
+        //  proceedLabel:
+        //    pop
+        //  skipPopLabel:
+
+        InsnList hook = new InsnList();
+        LabelNode proceedLabel = new LabelNode();
+        LabelNode notCustomizedLabel = new LabelNode();
+        LabelNode skipPopLabel = new LabelNode();
+
+        // 1. Load this.targetColor
+        hook.add(new LabelNode());
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new InsnNode(Opcodes.DUP));
+        hook.add(new JumpInsnNode(Opcodes.IFNULL, proceedLabel));
+
+        // 2. Fetch color to trigger custom theme reload if needed
+        hook.add(new InsnNode(Opcodes.DUP));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
+        hook.add(new InsnNode(Opcodes.POP));
+
+        // 3. Check targetColor.isCustomized
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
+
+        // 4. If customized: return this.targetColor directly (bypassing Mode-2 background shift!)
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new InsnNode(Opcodes.ARETURN));
+
+        // 5. If not customized: continue to original code
+        hook.add(notCustomizedLabel);
+        hook.add(new JumpInsnNode(Opcodes.GOTO, skipPopLabel));
+
+        // 6. If targetColor was null: pop duplicated null reference
+        hook.add(proceedLabel);
+        hook.add(new InsnNode(Opcodes.POP));
+
+        hook.add(skipPopLabel);
+
+        resolveMethodNode.instructions.insert(hook);
     }
 }
