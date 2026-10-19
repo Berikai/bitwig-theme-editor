@@ -984,11 +984,6 @@ public class BridgePatchClass extends PatchClass {
         //    ifeq notCustomizedLabel
         //    aload_0
         //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.alpha / colorIntegerValue
-        //    (check alpha != 0)
-        //    ifeq notCustomizedLabel
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
         //    areturn
         //  notCustomizedLabel:
         //  proceedLabel:
@@ -1075,31 +1070,7 @@ public class BridgePatchClass extends PatchClass {
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
         hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
 
-        // 5b. Alpha guard: only override relative resolution if color is non-transparent (alpha != 0)
-        String alphaField = PatchClass.mappings.get("ColorClass.alphaValue");
-        String intColorField = PatchClass.mappings.get("ColorClass.colorIntegerValue");
-
-        if (alphaField != null) {
-            // Pre-5.2: targetColor.alphaValue == 0.0f
-            hook.add(new LabelNode());
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, alphaField, "F"));
-            hook.add(new InsnNode(Opcodes.FCONST_0));
-            hook.add(new InsnNode(Opcodes.FCMPL));
-            hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
-        } else if (intColorField != null) {
-            // Post-5.2: (targetColor.colorIntegerValue & 0xFF000000) == 0
-            hook.add(new LabelNode());
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, intColorField, "I"));
-            hook.add(new LdcInsnNode(0xFF000000));
-            hook.add(new InsnNode(Opcodes.IAND));
-            hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
-        }
-
-        // 6. Return this.targetColor directly if customized and non-transparent
+        // 6. Return this.targetColor directly if customized (isCustomized is only true for non-transparent colors)
         hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
         hook.add(new InsnNode(Opcodes.ARETURN));
