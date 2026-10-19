@@ -465,6 +465,7 @@ public class Editor extends JFrame {
         listModel.clear();
         listModel2.clear();
 
+        boolean hasNoteFX = false;
         // Read the theme file line by line, separate lines with ": " to get key and value
         // For each line, create a ColorPanel item and add it to the list1
         // Example line: background: #1e1e1e
@@ -495,6 +496,9 @@ public class Editor extends JFrame {
                         disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
                     }
+                    if (parts[0].startsWith("Note FX Chain")) {
+                        hasNoteFX = true;
+                    }
                     ColorPanel item;
                     try {
                         item = new ColorPanel(parts[0].trim(), parts[1].split("//")[0].trim());
@@ -512,6 +516,33 @@ public class Editor extends JFrame {
             }
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
+        }
+
+        // If default.bte was created by an older BTE version without Note FX colors, append them now
+        if (!hasNoteFX) {
+            String[][] defaultNoteFX = new String[][] {
+                {"Note FX Chain 1", "#808080"},
+                {"Note FX Chain 2", "#406a80"},
+                {"Note FX Chain 3", "#40804a"},
+                {"Note FX Chain 4", "#808040"},
+                {"Note FX Chain 5", "#80404a"},
+                {"Note FX Chain 6", "#6a4080"},
+                {"Note FX Chain 7", "#406080"},
+                {"Note FX Chain 8", "#408055"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Note FX Chain Colors");
+                bw.newLine();
+                for (String[] fx : defaultNoteFX) {
+                    bw.write(fx[0] + ": " + fx[1]);
+                    bw.newLine();
+                    ColorPanel item = new ColorPanel(fx[0], fx[1]);
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
         }
 
         colorsSizeLabel.setText("Colors: " + listModel.size());
