@@ -636,7 +636,7 @@ public class BridgePatchClass extends PatchClass {
         // Add default entries for Piano Roll (Black and White keys)
         String[] defaultPianoRollColors = new String[] {
             "Piano Roll Black Key: #1a1a1a",
-            "Piano Roll White Key: #ffffff1a"
+            "Piano Roll White Key: #b3b3b3"
         };
         for (String prEntry : defaultPianoRollColors) {
             il.add(new LabelNode());

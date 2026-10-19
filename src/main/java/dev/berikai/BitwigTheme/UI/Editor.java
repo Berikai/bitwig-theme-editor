@@ -45,6 +45,26 @@ public class Editor extends JFrame {
     private JButton undoButton2;
     private JButton redoButton2;
 
+    private boolean isDefunctColorKey(String key) {
+        if ("Irrelevant Timeline Overlay".equals(key)) return true;
+        if (isBitwig6OrNewer) {
+            return "Top Level Timeline Background".equals(key)
+                    || "Dark Timeline Background".equals(key)
+                    || "Light Timeline Background".equals(key);
+        }
+        return false;
+    }
+
+    private final java.util.List<ColorPanel> allItems1 = new java.util.ArrayList<>();
+    private final java.util.List<ColorPanel> allItems2 = new java.util.ArrayList<>();
+
+    private void resetSearchFilters() {
+        if (textField1 != null) textField1.setText("");
+        if (textField2 != null) textField2.setText("");
+        allItems1.clear();
+        allItems2.clear();
+    }
+
     private int hoveredIndex = -1;
 
     private boolean isBitwig6OrNewer = false;
@@ -335,12 +355,12 @@ public class Editor extends JFrame {
 
             JTextField textField = (list == list1) ? textField1 : textField2;
 
-            final java.util.List<ColorPanel> allItems = new java.util.ArrayList<>();
+            final java.util.List<ColorPanel> allItems = (list == list1) ? allItems1 : allItems2;
             textField.getDocument().addDocumentListener(new DocumentListener() {
                 private void search() {
                     String searchText = textField.getText().toLowerCase().trim();
 
-                    if (allItems.isEmpty()) {
+                    if (allItems.isEmpty() && listModel.size() > 0) {
                         for (int i = 0; i < listModel.size(); i++) {
                             allItems.add(listModel.getElementAt(i));
                         }
@@ -352,7 +372,7 @@ public class Editor extends JFrame {
                         for (ColorPanel item : allItems) {
                             listModel.addElement(item);
                         }
-
+                        allItems.clear();
                         list.clearSelection();
                     } else {
                         for (ColorPanel item : allItems) {
@@ -452,6 +472,8 @@ public class Editor extends JFrame {
     }
 
     private void loadDefaultThemeColors() {
+        resetSearchFilters();
+
         String themeFilePath = Main.getVersionConfigPath("default.bte");
         File themeFile = new File(themeFilePath);
 
@@ -467,6 +489,8 @@ public class Editor extends JFrame {
 
         boolean hasNoteFX = false;
         boolean hasPianoRoll = false;
+        boolean needsSanitization = false;
+
         // Read the theme file line by line, separate lines with ": " to get key and value
         // For each line, create a ColorPanel item and add it to the list1
         // Example line: background: #1e1e1e
@@ -490,22 +514,31 @@ public class Editor extends JFrame {
                     continue;
                 }
 
-
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
-                    if (parts[0].equals("Gradient")) {
+                    String key = parts[0].trim();
+                    if (key.equals("Gradient")) {
                         disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
                     }
-                    if (parts[0].startsWith("Note FX Chain")) {
+                    if (isDefunctColorKey(key)) {
+                        needsSanitization = true;
+                        continue;
+                    }
+                    if (key.startsWith("Note FX Chain")) {
                         hasNoteFX = true;
                     }
-                    if (parts[0].startsWith("Piano Roll")) {
+                    if (key.startsWith("Piano Roll")) {
                         hasPianoRoll = true;
+                    }
+                    String value = parts[1].split("//")[0].trim();
+                    if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
+                        value = "#b3b3b3";
+                        needsSanitization = true;
                     }
                     ColorPanel item;
                     try {
-                        item = new ColorPanel(parts[0].trim(), parts[1].split("//")[0].trim());
+                        item = new ColorPanel(key, value);
                         try {
                             item.setComment(parts[1].split("//")[1].trim());
                         } catch (Exception e) {
@@ -553,7 +586,7 @@ public class Editor extends JFrame {
         if (!hasPianoRoll) {
             String[][] defaultPianoRoll = new String[][] {
                 {"Piano Roll Black Key", "#1a1a1a"},
-                {"Piano Roll White Key", "#ffffff1a"}
+                {"Piano Roll White Key", "#b3b3b3"}
             };
             try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
                  java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
@@ -570,12 +603,27 @@ public class Editor extends JFrame {
             } catch (Exception ignored) {}
         }
 
+        // If default.bte contained defunct keys or outdated color values, sanitize default.bte on disk
+        if (needsSanitization) {
+            try (PrintWriter writer = new PrintWriter(themeFile)) {
+                writer.println("// Default color values for Bitwig Studio " + (Main.bitwigVersion != null ? Main.bitwigVersion : ""));
+                writer.println("// This file is auto-generated, please DO NOT edit.");
+                writer.println("Gradient: " + (!disableGradientCheckBox.isSelected()));
+                for (int i = 0; i < listModel.size(); i++) {
+                    ColorPanel cp = listModel.getElementAt(i);
+                    if (isDefunctColorKey(cp.getKey())) continue;
+                    writer.println(cp.getKey() + ": " + cp.getValue() + (!cp.getComment().isEmpty() ? " // " + cp.getComment() : ""));
+                }
+                writer.println("// <end>");
+            } catch (Exception ignored) {}
+        }
 
         colorsSizeLabel.setText("Colors: " + listModel.size());
         modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
     }
 
     public void loadThemeColors(String themeFilePath) {
+        resetSearchFilters();
         // Similar to loadDefaultThemeColors but loads from a user-selected theme file
         File themeFile = new File(themeFilePath);
         if (!themeFile.exists()) {
@@ -589,23 +637,34 @@ public class Editor extends JFrame {
         }
 
         DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
+        boolean themeNeedsSanitization = false;
 
         try (Scanner scanner = new Scanner(themeFile)) {
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
-                    if (parts[0].equals("Gradient")) {
+                    String rawKey = parts[0].trim();
+                    if (rawKey.equals("Gradient")) {
                         disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
+                    }
+                    if (isDefunctColorKey(rawKey)) {
+                        themeNeedsSanitization = true;
+                        continue;
+                    }
+                    String rawValue = parts[1].split("//")[0].trim();
+                    if (rawKey.equals("Piano Roll White Key") && (rawValue.equalsIgnoreCase("#ffffff1a") || rawValue.length() == 9)) {
+                        rawValue = "#b3b3b3";
+                        themeNeedsSanitization = true;
                     }
                     for (Object _panel : listModel.toArray()) {
                         if (!(_panel instanceof ColorPanel)) continue;
                         ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(parts[0].trim()) : parts[0].trim();
+                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(rawKey) : rawKey;
                         if (panel.getKey().equals(colorKey)) {
                             try {
-                                panel.setValue(parts[1].split("//")[0].trim());
+                                panel.setValue(rawValue);
                                 try {
                                     panel.setComment(parts[1].split("//")[1].trim());
                                 } catch (Exception e) {
@@ -616,7 +675,7 @@ public class Editor extends JFrame {
                                 System.out.println("-> Skipping invalid line in theme file: " + line);
                                 continue;
                             }
-                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(parts[1].split("//")[0].trim()));
+                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(rawValue));
                             panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
                         }
                     }
@@ -626,12 +685,17 @@ public class Editor extends JFrame {
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
-        
+
+        if (themeNeedsSanitization) {
+            saveThemeColors(themeFilePath);
+        }
+
         this.currentThemePath = themeFilePath;
         System.out.println("-> Loaded theme from: " + themeFilePath);
     }
 
     public void loadThemeColorsFromJSON(String themeFilePath) {
+        resetSearchFilters();
         // Similar to loadDefaultThemeColors but loads from a user-selected theme file
         File themeFile = new File(themeFilePath);
         if (!themeFile.exists()) {
@@ -654,23 +718,31 @@ public class Editor extends JFrame {
                         .replace("\"", ""); // Eliminate quotes
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
-                    if (parts[0].equals("Gradient")) {
+                    String rawKey = parts[0].trim();
+                    if (rawKey.equals("Gradient")) {
                         disableGradientCheckBox.setSelected(parts[1].trim().equals("false"));
                         continue;
+                    }
+                    if (isDefunctColorKey(rawKey)) {
+                        continue;
+                    }
+                    String rawValue = parts[1].trim();
+                    if (rawKey.equals("Piano Roll White Key") && (rawValue.equalsIgnoreCase("#ffffff1a") || rawValue.length() == 9)) {
+                        rawValue = "#b3b3b3";
                     }
                     for (Object _panel : listModel.toArray()) {
                         if (!(_panel instanceof ColorPanel)) continue;
                         ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(parts[0].trim()) : parts[0].trim();
+                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(rawKey) : rawKey;
                         if (panel.getKey().equals(colorKey)) {
                             try {
-                                panel.setValue(parts[1].trim());
+                                panel.setValue(rawValue);
                                 updateModifiedList(panel);
                             } catch (Exception e) {
                                 System.out.println("-> Skipping invalid line in theme file: " + line);
                                 continue;
                             }
-                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(parts[1].trim()));
+                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(rawValue));
                             panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
                         }
                     }
@@ -708,6 +780,9 @@ public class Editor extends JFrame {
                     break;
                 }
             }
+            if (!allItems2.isEmpty()) {
+                allItems2.removeIf(item -> item.getKey().equals(panel.getKey()));
+            }
         } else {
             // If the color is modified, add it to modified list if not already present
             boolean found = false;
@@ -721,8 +796,12 @@ public class Editor extends JFrame {
             if (!found) {
                 listModel2.addElement(panel);
             }
+            if (!allItems2.isEmpty()) {
+                boolean inAll = allItems2.stream().anyMatch(item -> item.getKey().equals(panel.getKey()));
+                if (!inAll) allItems2.add(panel);
+            }
         }
-        modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
+        modifiedSizeLabel.setText("Modified Colors: " + (!allItems2.isEmpty() ? allItems2.size() : listModel2.size()));
         list2.repaint();
     }
 
@@ -746,9 +825,16 @@ public class Editor extends JFrame {
             writer.println("// Theme file generated by Bitwig Theme Editor " + Main.version);
             writer.println("// Bitwig Studio version: " + Main.bitwigVersion);
             writer.println("Gradient: " + (!disableGradientCheckBox.isSelected()));
-            for (Object _panel : minimizeThemeOnExportCheckBox.isSelected() ? listModel2.toArray() : listModel.toArray()) {
+            Object[] panelsToSave;
+            if (minimizeThemeOnExportCheckBox.isSelected()) {
+                panelsToSave = !allItems2.isEmpty() ? allItems2.toArray() : listModel2.toArray();
+            } else {
+                panelsToSave = !allItems1.isEmpty() ? allItems1.toArray() : listModel.toArray();
+            }
+            for (Object _panel : panelsToSave) {
                 if (!(_panel instanceof ColorPanel)) continue;
                 ColorPanel panel = (ColorPanel) _panel;
+                if (isDefunctColorKey(panel.getKey())) continue;
                 writer.println(panel.getKey() + ": " + panel.getValue() + (!panel.getComment().isEmpty() ? " // " + panel.getComment() : ""));
             }
         } catch (Exception e) {

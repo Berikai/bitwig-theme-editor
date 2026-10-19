@@ -10,35 +10,31 @@ import java.util.HashMap;
 import java.util.List;
 
 public class PianoRollPatchClass extends PatchClass {
-    // Note: In Bitwig Studio, Piano Roll keys and pitch background lanes don't originally use named theme palette colors
-    // Instead, black keys and pitch lane backgrounds use hardcoded dark colors (0.1f, 0.2f blend),
-    // and white keys draw highlights with white/light colors (0.7f, 0.1f overlay)
+    // Note: In Bitwig Studio, Piano Roll keys don't originally use named theme palette colors
+    // Instead, black keys use hardcoded dark colors (0.1f), and white keys use light colors (0.7f)
     // That means these color instances originally have null/unnamed colorName fields
-    // We locate both the Piano Roll keys widget class and the timeline pitch lanes painter class to name and customize them
-
-    protected ClassNode keysClassNode;
-    protected MethodNode keysMethodNode;
-    protected ClassNode timelineClassNode;
-    protected MethodNode timelineMethodNode;
+    // We locate the Piano Roll keyboard widget class to name and customize them
 
     public PianoRollPatchClass(HashMap<String, ClassNode> classNodes) {
         // Call super class constructor
         super(classNodes, "PianoRollClass");
 
-        // Find the Piano Roll keys widget class and render method (contains 0.7f and 0.1f)
-        findKeysClass(classNodes);
+        // Find the Piano Roll keys widget class (Apa in 6.1.5, nLG in 6.0, bZW in 5.3.13, yzC in 4.3.10)
+        findClassNode(classNodes);
 
-        // In Bitwig 6.x, timeline pitch lanes are in a separate painter class (contains 0.2f and 0.1f)
-        findTimelineClass(classNodes);
-
-        if (keysClassNode == null) {
+        // If classNode is null, inform the user
+        if (classNode == null) {
             System.out.println("ERROR: Piano Roll keys widget class not found. Your Bitwig Studio version may not be supported.");
             System.out.println(" -> Known working versions: 4.x, 5.x, 6.x");
+            return;
         }
+
+        // Find the method node that we will be injecting code into
+        findMethodNode();
     }
 
-    // Find the Piano Roll keys widget class (Apa in 6.1.5, nLG in 6.0, bZW in 5.3.13, yzC in 4.3.10)
-    private void findKeysClass(HashMap<String, ClassNode> classNodes) {
+    // Find the Piano Roll keys widget class (contains 0.7f and 0.1f in timeline package)
+    private void findClassNode(HashMap<String, ClassNode> classNodes) {
         String prefix = "com/bitwig/flt/widget/core/timeline/";
 
         outer: for (ClassNode cn : classNodes.values()) {
@@ -61,10 +57,8 @@ public class PianoRollPatchClass extends PatchClass {
                 }
 
                 if (has07 && has01) {
-                    this.keysClassNode = cn;
-                    this.keysMethodNode = mn;
+                    this.classNode = cn;
                     PatchClass.mappings.put("PianoRollKeysClass", cn.name);
-                    PatchClass.mappings.put("PianoRollKeysClass.paintMethod", mn.name);
                     JarNode.getModifiedNodes().put(cn.name, cn);
                     break outer;
                 }
@@ -72,55 +66,42 @@ public class PianoRollPatchClass extends PatchClass {
         }
     }
 
-    // Find the timeline pitch lanes painter class in Bitwig 6.x (CgT in 6.1.5, TrL in 6.0)
-    // Note: In 4.x and 5.x, timeline pitch lanes are already rendered inside keysClassNode
-    private void findTimelineClass(HashMap<String, ClassNode> classNodes) {
-        String prefix = "com/bitwig/flt/widget/core/timeline/";
-
-        outer: for (ClassNode cn : classNodes.values()) {
-            if (!cn.name.startsWith(prefix) || cn.name.substring(prefix.length()).contains("/") || cn.name.contains("$")) {
-                continue;
-            }
-            if (cn == this.keysClassNode) {
-                continue;
-            }
-
-            for (MethodNode mn : cn.methods) {
-                boolean has02 = false;
-                boolean has01 = false;
-
-                for (int i = 0; i < mn.instructions.size(); i++) {
-                    AbstractInsnNode insn = mn.instructions.get(i);
-                    if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
-                        Object cst = ((LdcInsnNode) insn).cst;
-                        if (Float.valueOf(0.2f).equals(cst)) has02 = true;
-                        if (Float.valueOf(0.1f).equals(cst)) has01 = true;
-                    }
-                }
-
-                if (has02 && has01) {
-                    this.timelineClassNode = cn;
-                    this.timelineMethodNode = mn;
-                    PatchClass.mappings.put("PianoRollTimelineClass", cn.name);
-                    PatchClass.mappings.put("PianoRollTimelineClass.paintMethod", mn.name);
-                    JarNode.getModifiedNodes().put(cn.name, cn);
-                    break outer;
-                }
-            }
-        }
-    }
-
+    // Let's find our target method that paints the piano roll keys
     @Override
     protected void findMethodNode() {
-        // Method discovery is handled dynamically in findKeysClass and findTimelineClass
+        if (classNode == null) return;
+
+        for (MethodNode mn : classNode.methods) {
+            boolean has07 = false;
+            boolean has01 = false;
+
+            for (int i = 0; i < mn.instructions.size(); i++) {
+                AbstractInsnNode insn = mn.instructions.get(i);
+                if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
+                    Object cst = ((LdcInsnNode) insn).cst;
+                    if (Float.valueOf(0.7f).equals(cst)) has07 = true;
+                    if (Float.valueOf(0.1f).equals(cst)) has01 = true;
+                }
+            }
+
+            if (has07 && has01) {
+                this.methodNode = mn;
+                PatchClass.mappings.put("PianoRollKeysClass.paintMethod", mn.name);
+                break;
+            }
+        }
     }
 
     // The code we will inject here is responsible for naming the Piano Roll colors
-    // 1. In keysClassNode: inject colorInstance.colorName after Color.<init>(FFF)V
-    // 2. In timelineClassNode: inject colorInstance.colorName after Color.withAlpha(F)
-    // In both cases, we also call getColorMethod to immediately load the color from theme.bte
+    // In keys render method: inject colorInstance.colorName after Color.<init>(FFF)V
+    // We also call getColorMethod to immediately load the color from theme.bte
     @Override
     public void patch() {
+        if (classNode == null || methodNode == null) {
+            System.out.println("WARNING: Skipping Piano Roll patch (class or method not identified).");
+            return;
+        }
+
         String colorClassName = PatchClass.mappings.get("ColorClass");
         String getColorMethod = PatchClass.mappings.get("ColorClass.getColorMethod");
         String getColorDesc = PatchClass.mappings.get("ColorClass.getColorDesc");
@@ -130,28 +111,17 @@ public class PianoRollPatchClass extends PatchClass {
             return;
         }
 
-        if (keysMethodNode != null) {
-            patchKeysMethod(colorClassName, getColorMethod, getColorDesc);
-        }
-
-        if (timelineMethodNode != null) {
-            patchTimelineMethod(colorClassName, getColorMethod, getColorDesc);
-        }
-    }
-
-    // Patch Piano Roll keys widget method (constructs Color instances with 0.7f, 0.1f, and 0.2f)
-    private void patchKeysMethod(String colorClassName, String getColorMethod, String getColorDesc) {
         List<AbstractInsnNode> targets = new ArrayList<>();
         List<String> targetNames = new ArrayList<>();
 
-        for (int i = 0; i < keysMethodNode.instructions.size(); i++) {
-            AbstractInsnNode insn = keysMethodNode.instructions.get(i);
+        for (int i = 0; i < methodNode.instructions.size(); i++) {
+            AbstractInsnNode insn = methodNode.instructions.get(i);
             if (insn.getOpcode() == Opcodes.INVOKESPECIAL && insn instanceof MethodInsnNode) {
                 MethodInsnNode minsn = (MethodInsnNode) insn;
                 if (minsn.owner.equals(colorClassName) && minsn.name.equals("<init>") && minsn.desc.equals("(FFF)V")) {
                     Float floatCst = null;
                     for (int j = i - 1; j >= Math.max(0, i - 10); j--) {
-                        AbstractInsnNode prev = keysMethodNode.instructions.get(j);
+                        AbstractInsnNode prev = methodNode.instructions.get(j);
                         if (prev.getOpcode() == Opcodes.LDC && prev instanceof LdcInsnNode) {
                             Object cst = ((LdcInsnNode) prev).cst;
                             if (cst instanceof Float) {
@@ -165,7 +135,7 @@ public class PianoRollPatchClass extends PatchClass {
                         if (Float.valueOf(0.7f).equals(floatCst)) {
                             targets.add(insn);
                             targetNames.add("Piano Roll White Key");
-                        } else if (Float.valueOf(0.1f).equals(floatCst) || Float.valueOf(0.2f).equals(floatCst)) {
+                        } else if (Float.valueOf(0.1f).equals(floatCst)) {
                             targets.add(insn);
                             targetNames.add("Piano Roll Black Key");
                         }
@@ -180,58 +150,10 @@ public class PianoRollPatchClass extends PatchClass {
 
             InsnList hook = new InsnList();
             writeBytecode(hook, colorClassName, getColorMethod, getColorDesc, colorName);
-            keysMethodNode.instructions.insert(targetInsn, hook);
+            methodNode.instructions.insert(targetInsn, hook);
         }
 
-        keysMethodNode.maxStack += 2;
-    }
-
-    // Patch timeline pitch lanes painter method (calls Color.withAlpha with 0.2f and 0.1f)
-    private void patchTimelineMethod(String colorClassName, String getColorMethod, String getColorDesc) {
-        String withAlphaDesc = "(F)L" + colorClassName + ";";
-        List<AbstractInsnNode> targets = new ArrayList<>();
-        List<String> targetNames = new ArrayList<>();
-
-        for (int i = 0; i < timelineMethodNode.instructions.size(); i++) {
-            AbstractInsnNode insn = timelineMethodNode.instructions.get(i);
-            if (insn.getOpcode() == Opcodes.INVOKEVIRTUAL && insn instanceof MethodInsnNode) {
-                MethodInsnNode minsn = (MethodInsnNode) insn;
-                if (minsn.owner.equals(colorClassName) && minsn.desc.equals(withAlphaDesc)) {
-                    Float floatCst = null;
-                    for (int j = i - 1; j >= Math.max(0, i - 5); j--) {
-                        AbstractInsnNode prev = timelineMethodNode.instructions.get(j);
-                        if (prev.getOpcode() == Opcodes.LDC && prev instanceof LdcInsnNode) {
-                            Object cst = ((LdcInsnNode) prev).cst;
-                            if (cst instanceof Float) {
-                                floatCst = (Float) cst;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (floatCst != null) {
-                        if (Float.valueOf(0.1f).equals(floatCst)) {
-                            targets.add(insn);
-                            targetNames.add("Piano Roll White Key");
-                        } else if (Float.valueOf(0.2f).equals(floatCst)) {
-                            targets.add(insn);
-                            targetNames.add("Piano Roll Black Key");
-                        }
-                    }
-                }
-            }
-        }
-
-        for (int i = 0; i < targets.size(); i++) {
-            AbstractInsnNode targetInsn = targets.get(i);
-            String colorName = targetNames.get(i);
-
-            InsnList hook = new InsnList();
-            writeBytecode(hook, colorClassName, getColorMethod, getColorDesc, colorName);
-            timelineMethodNode.instructions.insert(targetInsn, hook);
-        }
-
-        timelineMethodNode.maxStack += 2;
+        methodNode.maxStack += 2;
     }
 
     // --------- Bytecode writing section ---------
@@ -243,7 +165,7 @@ public class PianoRollPatchClass extends PatchClass {
         //    colorInstance.getColorInteger(); // or getRed() in pre-5.2 to trigger theme reload
         //
         // And, here is the corresponding bytecode:
-        //    aload colorInstance (already on top of stack from instantiation or withAlpha)
+        //    aload colorInstance (already on top of stack from Color instantiation)
         //    dup
         //    ldc colorName
         //    putfield ColorClass.colorName Ljava/lang/String;
