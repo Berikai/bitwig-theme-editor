@@ -82,6 +82,8 @@ public class BridgePatchClass extends PatchClass {
             }
 
             // Also find baseColorMethod and ramonaNameMethod from superclasses
+            PatchClass.mappings.remove("ColorBridgeClass.getBaseColor");
+            PatchClass.mappings.remove("ColorBridgeClass.getRamonaName");
             if (classNodes != null) {
                 String curSuper = classNode.superName;
                 while (curSuper != null && !curSuper.equals("java/lang/Object")) {
@@ -93,7 +95,6 @@ public class BridgePatchClass extends PatchClass {
                         for (MethodNode mn : sup.methods) {
                             if ((mn.access & Opcodes.ACC_STATIC) == 0 && (mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals(baseDesc)) {
                                 PatchClass.mappings.put("ColorBridgeClass.getBaseColor", mn.name);
-                                PatchClass.mappings.put("ColorBridgeClass.baseColorOwner", sup.name);
                                 break;
                             }
                         }
@@ -103,7 +104,6 @@ public class BridgePatchClass extends PatchClass {
                         for (MethodNode mn : sup.methods) {
                             if ((mn.access & Opcodes.ACC_STATIC) == 0 && (mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals("()Ljava/lang/String;") && !mn.name.equals("toString")) {
                                 PatchClass.mappings.put("ColorBridgeClass.getRamonaName", mn.name);
-                                PatchClass.mappings.put("ColorBridgeClass.ramonaNameOwner", sup.name);
                                 break;
                             }
                         }
@@ -231,8 +231,7 @@ public class BridgePatchClass extends PatchClass {
 
         // If colorName argument is null or empty, attempt to resolve the name from Ramona object metadata
         String getRamonaNameMethod = PatchClass.mappings.get("ColorBridgeClass.getRamonaName");
-        String ramonaNameOwner = PatchClass.mappings.get("ColorBridgeClass.ramonaNameOwner");
-        if (getRamonaNameMethod != null && ramonaNameOwner != null) {
+        if (getRamonaNameMethod != null) {
             LabelNode hasColorName = new LabelNode();
             LabelNode fetchRamonaName = new LabelNode();
             il.add(new LabelNode());
@@ -244,7 +243,7 @@ public class BridgePatchClass extends PatchClass {
 
             il.add(fetchRamonaName);
             il.add(new VarInsnNode(Opcodes.ALOAD, 0)); // this
-            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ramonaNameOwner, getRamonaNameMethod, "()Ljava/lang/String;", false));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getRamonaNameMethod, "()Ljava/lang/String;", false));
             il.add(new InsnNode(Opcodes.DUP));
             LabelNode keepNull = new LabelNode();
             il.add(new JumpInsnNode(Opcodes.IFNULL, keepNull));
@@ -874,9 +873,7 @@ public class BridgePatchClass extends PatchClass {
         }
 
         String getBaseColorMethod = PatchClass.mappings.get("ColorBridgeClass.getBaseColor");
-        String baseColorOwner = PatchClass.mappings.get("ColorBridgeClass.baseColorOwner");
         String getRamonaNameMethod = PatchClass.mappings.get("ColorBridgeClass.getRamonaName");
-        String ramonaNameOwner = PatchClass.mappings.get("ColorBridgeClass.ramonaNameOwner");
 
         // In Bitwig Studio, elements like "Knob Body" use Mode 2 ("Same as background")
         // In this mode, Bitwig ignores the base color and calculates relative brightness from the parent container's background color
@@ -910,7 +907,7 @@ public class BridgePatchClass extends PatchClass {
         //    ifnonnull hasTargetColorLabel
         //    aload_0
         //    aload_0
-        //    invokevirtual baseColorOwner.getBaseColorMethod ()LColorClass;
+        //    invokevirtual ColorBridgeClass.getBaseColorMethod ()LColorClass;
         //    putfield ColorBridgeClass.targetColor LColorClass;
         //  hasTargetColorLabel:
         //    aload_0
@@ -927,7 +924,7 @@ public class BridgePatchClass extends PatchClass {
         //    ifeq hasNameLabel
         //  fetchRamonaLabel:
         //    aload_0
-        //    invokevirtual ramonaNameOwner.getRamonaNameMethod ()Ljava/lang/String;
+        //    invokevirtual ColorBridgeClass.getRamonaNameMethod ()Ljava/lang/String;
         //    dup
         //    ifnull skipStoreRamonaLabel
         //    aload_0
@@ -961,14 +958,14 @@ public class BridgePatchClass extends PatchClass {
         LabelNode notCustomizedLabel = new LabelNode();
 
         // 1. Populate this.targetColor from this.getBaseColor() if targetColor is null
-        if (getBaseColorMethod != null && baseColorOwner != null) {
+        if (getBaseColorMethod != null) {
             hook.add(new LabelNode());
             hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
             hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
             hook.add(new JumpInsnNode(Opcodes.IFNONNULL, hasTargetColorLabel));
             hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
             hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, baseColorOwner, getBaseColorMethod, "()L" + colorClassName + ";", false));
+            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getBaseColorMethod, "()L" + colorClassName + ";", false));
             hook.add(new FieldInsnNode(Opcodes.PUTFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
             hook.add(hasTargetColorLabel);
         }
@@ -980,7 +977,7 @@ public class BridgePatchClass extends PatchClass {
         hook.add(new JumpInsnNode(Opcodes.IFNULL, proceedLabel));
 
         // 3. Populate colorName from Ramona metadata if null or empty
-        if (getRamonaNameMethod != null && ramonaNameOwner != null) {
+        if (getRamonaNameMethod != null) {
             hook.add(new LabelNode());
             hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
             hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
@@ -994,7 +991,7 @@ public class BridgePatchClass extends PatchClass {
 
             hook.add(fetchRamonaLabel);
             hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ramonaNameOwner, getRamonaNameMethod, "()Ljava/lang/String;", false));
+            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getRamonaNameMethod, "()Ljava/lang/String;", false));
             hook.add(new InsnNode(Opcodes.DUP));
             hook.add(new JumpInsnNode(Opcodes.IFNULL, skipStoreRamonaLabel));
             hook.add(new VarInsnNode(Opcodes.ALOAD, 0));

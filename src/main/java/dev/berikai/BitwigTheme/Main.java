@@ -139,6 +139,11 @@ public class Main {
     public static int applyPatch(String bitwig_path, JarNode jar) {
         System.out.println("Patching started...");
 
+        // Reset static patcher and mapping state to avoid cross-version contamination
+        PatchClass.mappings.clear();
+        JarNode.getModifiedNodes().clear();
+        JarNode.getComputeMaxNodes().clear();
+
         BitwigClass bwClass = new BitwigClass(jar.getNodes());
         if (!bwClass.isBitwigJAR()) {
             System.out.println("ERROR: Selected JAR file is not Bitwig Studio JAR.");
