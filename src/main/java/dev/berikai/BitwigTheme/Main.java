@@ -45,7 +45,7 @@ public class Main {
         System.out.println();
 
         // Initialize config path
-        // (e.g. Windows: C:\Users\<User>\AppData\Roaming\.bitwig-theme-editor, Linux: /home/<User>/.bitwig-theme-editor)
+        // (Windows: %APPDATA%\.bitwig-theme-editor, Linux: $XDG_CONFIG_HOME/bitwig-theme-editor or ~/.bitwig-theme-editor, macOS: ~/.bitwig-theme-editor, or custom via BTE_CONFIG_DIR)
         initializeConfigPath();
 
         // Run UI, if no argument given
@@ -350,25 +350,50 @@ public class Main {
 
 
     private static void initializeConfigPath() {
-        String appDirName = ".bitwig-theme-editor";
         String os = System.getProperty("os.name").toLowerCase();
+        String customEnv = System.getenv("BTE_CONFIG_DIR");
 
-        String basePath;
-        if (os.contains("win")) basePath = System.getenv("APPDATA");
-        else basePath = System.getProperty("user.home");
+        File configDir;
 
-        // File seperator of OS (e.g. Windows: "\", Linux & macOS: "/")
-        String sep = File.separator;
+        // 1. Explicit override via environment variable
+        if (customEnv != null && !customEnv.trim().isEmpty()) {
+            configDir = new File(customEnv.trim());
+        } else if (os.contains("win")) {
+            // Windows: %APPDATA%\.bitwig-theme-editor
+            String base = System.getenv("APPDATA");
+            String basePath = (base != null && !base.trim().isEmpty()) ? base : System.getProperty("user.home");
+            configDir = new File(basePath, ".bitwig-theme-editor");
+        } else {
+            // Unix-like (Linux & macOS)
+            File legacyDir = new File(System.getProperty("user.home"), ".bitwig-theme-editor");
 
-        // Build full directory path
-        String directoryPath = basePath + sep + appDirName;
-
-        // Create directory if it doesn't exist
-        if(new File(directoryPath).mkdirs()) {
-            System.out.println("Created config directory: " + directoryPath);
+            if (os.contains("mac")) {
+                // macOS: maintain ~/.bitwig-theme-editor default for consistency
+                configDir = legacyDir;
+            } else {
+                // Linux: adhere to XDG Base Directory Specification
+                // If legacy directory already exists, preserve it to prevent breaking existing installations
+                if (legacyDir.exists() && legacyDir.isDirectory()) {
+                    configDir = legacyDir;
+                } else {
+                    String xdgConfig = System.getenv("XDG_CONFIG_HOME");
+                    if (xdgConfig != null && !xdgConfig.trim().isEmpty()) {
+                        configDir = new File(xdgConfig.trim(), "bitwig-theme-editor");
+                    } else {
+                        configDir = new File(System.getProperty("user.home"), ".config" + File.separator + "bitwig-theme-editor");
+                    }
+                }
+            }
         }
 
-        configPath = directoryPath;
+        // Create directory if it doesn't exist
+        if (!configDir.exists()) {
+            if (configDir.mkdirs()) {
+                System.out.println("Created config directory: " + configDir.getAbsolutePath());
+            }
+        }
+
+        configPath = configDir.getAbsolutePath();
     }
 
     public static String getVersionConfigPath(String filename) {
