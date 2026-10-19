@@ -648,6 +648,28 @@ public class BridgePatchClass extends PatchClass {
             il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
         }
 
+        // Add default entries for EQ Bands (1 to 8) and EQ Curve Line
+        String[] defaultEQColors = new String[] {
+            "EQ Band 1: #6a0f0f",
+            "EQ Band 2: #a51818",
+            "EQ Band 3: #e23b22",
+            "EQ Band 4: #c9ff26",
+            "EQ Band 5: #26ff84",
+            "EQ Band 6: #a4c3ff",
+            "EQ Band 7: #b7b7b7",
+            "EQ Band 8: #808080",
+            "EQ Curve Line: #ffffff"
+        };
+        for (String eqEntry : defaultEQColors) {
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new LdcInsnNode(eqEntry));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+        }
+
         // Here is the java code:
         //                if ("track".equals(colorName)) {
         //                    writer.write("// <end>");

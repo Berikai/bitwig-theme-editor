@@ -11,6 +11,7 @@ import dev.berikai.BitwigTheme.core.impl.BridgePatchClass;
 import dev.berikai.BitwigTheme.core.impl.ColorPatchClass;
 import dev.berikai.BitwigTheme.core.impl.NoteFXPatchClass;
 import dev.berikai.BitwigTheme.core.impl.PianoRollPatchClass;
+import dev.berikai.BitwigTheme.core.impl.EQPatchClass;
 import org.objectweb.asm.tree.FieldNode;
 
 import javax.swing.*;
@@ -153,6 +154,7 @@ public class Main {
         PatchClass bridgeClass = new BridgePatchClass(jar.getNodes());
         PatchClass noteFXClass = new NoteFXPatchClass(jar.getNodes());
         PatchClass pianoRollClass = new PianoRollPatchClass(jar.getNodes());
+        PatchClass eqClass = new EQPatchClass(jar.getNodes());
 
         // Check if ColorClass already has the field "colorName"
         // This is to prevent double patching
@@ -213,6 +215,7 @@ public class Main {
         bridgeClass.patch();
         noteFXClass.patch();
         pianoRollClass.patch();
+        eqClass.patch();
 
         // Disable integrity check
         IntegrityClass integrityClass = new IntegrityClass(jar.getNodes());

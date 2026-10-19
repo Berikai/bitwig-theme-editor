@@ -489,6 +489,7 @@ public class Editor extends JFrame {
 
         boolean hasNoteFX = false;
         boolean hasPianoRoll = false;
+        boolean hasEQ = false;
         boolean needsSanitization = false;
 
         // Read the theme file line by line, separate lines with ": " to get key and value
@@ -530,6 +531,9 @@ public class Editor extends JFrame {
                     }
                     if (key.startsWith("Piano Roll")) {
                         hasPianoRoll = true;
+                    }
+                    if (key.startsWith("EQ Band") || key.equals("EQ Curve Line")) {
+                        hasEQ = true;
                     }
                     String value = parts[1].split("//")[0].trim();
                     if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
@@ -597,6 +601,34 @@ public class Editor extends JFrame {
                     bw.write(pr[0] + ": " + pr[1]);
                     bw.newLine();
                     ColorPanel item = new ColorPanel(pr[0], pr[1]);
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created by an older BTE version without EQ colors, append them now
+        if (!hasEQ) {
+            String[][] defaultEQ = new String[][] {
+                {"EQ Band 1", "#6a0f0f"},
+                {"EQ Band 2", "#a51818"},
+                {"EQ Band 3", "#e23b22"},
+                {"EQ Band 4", "#c9ff26"},
+                {"EQ Band 5", "#26ff84"},
+                {"EQ Band 6", "#a4c3ff"},
+                {"EQ Band 7", "#b7b7b7"},
+                {"EQ Band 8", "#808080"},
+                {"EQ Curve Line", "#ffffff"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// EQ Frequency Band and Curve Colors");
+                bw.newLine();
+                for (String[] eq : defaultEQ) {
+                    bw.write(eq[0] + ": " + eq[1]);
+                    bw.newLine();
+                    ColorPanel item = new ColorPanel(eq[0], eq[1]);
                     item.setComment("");
                     listModel.addElement(item);
                 }
