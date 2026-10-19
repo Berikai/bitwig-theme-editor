@@ -648,23 +648,6 @@ public class BridgePatchClass extends PatchClass {
             il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
         }
 
-        // Add default entries for Timeline styles (Arrangement view)
-        String[] defaultTimelineColors = new String[] {
-            "Top Level Timeline Background: #9c9c9c",
-            "Dark Timeline Background: #9c9c9c",
-            "Light Timeline Background: #acacac",
-            "Irrelevant Timeline Overlay: #0000000a"
-        };
-        for (String tlEntry : defaultTimelineColors) {
-            il.add(new LabelNode());
-            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
-            il.add(new LdcInsnNode(tlEntry));
-            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
-            il.add(new LabelNode());
-            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
-            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
-        }
-
         // Here is the java code:
         //                if ("track".equals(colorName)) {
         //                    writer.write("// <end>");
@@ -876,7 +859,7 @@ public class BridgePatchClass extends PatchClass {
         // In Bitwig Studio, elements like "Knob Body" use Mode 2 ("Same as background")
         // In this mode, Bitwig ignores the base color and calculates relative brightness from the parent container's background color
         // This causes knobs on different devices (like Polysynth vs Phase-4) to look completely different even when given the same hex (#32)
-        // Furthermore, anonymous timeline styles (like Top Level Timeline Background) are deserialized without going through addColorToUI
+        // Furthermore, unnamed styles (like knob bodies) are deserialized without going through addColorToUI
         // Here, we resolve the base color and Ramona metadata if targetColor is unset,
         // and check if the user explicitly customized this color in theme.bte (targetColor.isCustomized == true)
         // If they did, we return targetColor directly, allowing custom colors to work cleanly across all UI elements and devices!

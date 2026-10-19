@@ -467,7 +467,6 @@ public class Editor extends JFrame {
 
         boolean hasNoteFX = false;
         boolean hasPianoRoll = false;
-        boolean hasTimeline = false;
         // Read the theme file line by line, separate lines with ": " to get key and value
         // For each line, create a ColorPanel item and add it to the list1
         // Example line: background: #1e1e1e
@@ -503,9 +502,6 @@ public class Editor extends JFrame {
                     }
                     if (parts[0].startsWith("Piano Roll")) {
                         hasPianoRoll = true;
-                    }
-                    if (parts[0].equals("Top Level Timeline Background")) {
-                        hasTimeline = true;
                     }
                     ColorPanel item;
                     try {
@@ -574,28 +570,6 @@ public class Editor extends JFrame {
             } catch (Exception ignored) {}
         }
 
-        // If default.bte was created by an older BTE version without Timeline styles, append them now
-        if (!hasTimeline) {
-            String[][] defaultTimeline = new String[][] {
-                {"Top Level Timeline Background", "#9c9c9c"},
-                {"Dark Timeline Background", "#9c9c9c"},
-                {"Light Timeline Background", "#acacac"},
-                {"Irrelevant Timeline Overlay", "#0000000a"}
-            };
-            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
-                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
-                bw.newLine();
-                bw.write("// Timeline Colors");
-                bw.newLine();
-                for (String[] tl : defaultTimeline) {
-                    bw.write(tl[0] + ": " + tl[1]);
-                    bw.newLine();
-                    ColorPanel item = new ColorPanel(tl[0], tl[1]);
-                    item.setComment("");
-                    listModel.addElement(item);
-                }
-            } catch (Exception ignored) {}
-        }
 
         colorsSizeLabel.setText("Colors: " + listModel.size());
         modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
