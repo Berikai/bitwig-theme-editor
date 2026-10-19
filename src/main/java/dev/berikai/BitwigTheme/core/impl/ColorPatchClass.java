@@ -157,6 +157,9 @@ public class ColorPatchClass extends PatchClass {
 
             methodNode = getColorIntegerMethod;
 
+            PatchClass.mappings.put("ColorClass.getColorMethod", methodNode.name);
+            PatchClass.mappings.put("ColorClass.getColorDesc", methodNode.desc);
+
             return; // <<<
         }
 
@@ -176,6 +179,8 @@ public class ColorPatchClass extends PatchClass {
                     methodCounter++;
                 } else {
                     methodNode = mn;
+                    PatchClass.mappings.put("ColorClass.getColorMethod", methodNode.name);
+                    PatchClass.mappings.put("ColorClass.getColorDesc", methodNode.desc);
                     break;
                 }
             }
@@ -195,6 +200,9 @@ public class ColorPatchClass extends PatchClass {
 
         // Create a field to disable gradient
         classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "disableGradient", "Z", null, null));
+
+        // Create a field to indicate whether color was customized in theme.bte
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC, "isCustomized", "Z", null, null));
     }
 
     // The code we will inject here to the found method is responsible for reading "theme.bte"
@@ -332,6 +340,9 @@ public class ColorPatchClass extends PatchClass {
         il.add(new InsnNode(Opcodes.LCMP));
         il.add(new JumpInsnNode(Opcodes.IFLE, returnLabel));
         il.add(labelNode_B);
+        il.add(new VarInsnNode(Opcodes.ALOAD, 0/*this*/));
+        il.add(new InsnNode(Opcodes.ICONST_0));
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "isCustomized", "Z"));
         il.add(new VarInsnNode(Opcodes.ALOAD, 0/*this*/));
         il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J"));
         il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "lastColorFetch", "J"));
@@ -1284,6 +1295,12 @@ public class ColorPatchClass extends PatchClass {
             il.add(new VarInsnNode(Opcodes.FLOAD, aSlot));
             il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), PatchClass.mappings.get("ColorClass.alphaValue"), "F"));
         }
+        // Mark color as customized in theme.bte
+        il.add(new LabelNode());
+        il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        il.add(new InsnNode(Opcodes.ICONST_1));
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "isCustomized", "Z"));
+
         il.add(new LabelNode());
         il.add(new JumpInsnNode(Opcodes.GOTO, returnLabel)); //  It was tryStart_B
         il.add(tryEnd_C);il.add(labelNode_AN);
