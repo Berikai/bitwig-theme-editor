@@ -721,6 +721,14 @@ public class BridgePatchClass extends PatchClass {
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
         il.add(new JumpInsnNode(Opcodes.GOTO, labelNode_AM));
         il.add(labelNode_AL);
+        // Skip writing pseudo-styles / sentinels to default.bte
+        String[] pseudoStyles = new String[]{"Transparent", "Image Source", "Same as background", "Inherited"};
+        for (String pseudo : pseudoStyles) {
+            il.add(new LdcInsnNode(pseudo));
+            il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+            il.add(new JumpInsnNode(Opcodes.IFNE, tryEnd_E));
+        }
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex)); // Load colorName (1st argument, index 0)
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex + 2)); // Load colorInstance (3rd argument, index 2)
@@ -895,9 +903,16 @@ public class BridgePatchClass extends PatchClass {
         //                this.targetColor.colorName = ramonaName;
         //            }
         //        }
-        //        this.targetColor.getColorInteger(); // trigger theme reload/fetch
-        //        if (this.targetColor.isCustomized) {
-        //            return this.targetColor;
+        //        if ("Same as background".equals(this.targetColor.colorName)
+        //                || "Transparent".equals(this.targetColor.colorName)
+        //                || "Image Source".equals(this.targetColor.colorName)
+        //                || "Inherited".equals(this.targetColor.colorName)) {
+        //            // proceed with stock resolution
+        //        } else {
+        //            this.targetColor.getColorInteger(); // trigger theme reload/fetch
+        //            if (this.targetColor.isCustomized && this.targetColor.alpha != 0) {
+        //                return this.targetColor;
+        //            }
         //        }
         //    }
         //
@@ -935,6 +950,30 @@ public class BridgePatchClass extends PatchClass {
         //  skipStoreRamonaLabel:
         //    pop
         //  hasNameLabel:
+        //    ldc "Same as background"
+        //    aload_0
+        //    getfield ColorBridgeClass.targetColor LColorClass;
+        //    getfield ColorClass.colorName Ljava/lang/String;
+        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
+        //    ifne proceedLabel
+        //    ldc "Transparent"
+        //    aload_0
+        //    getfield ColorBridgeClass.targetColor LColorClass;
+        //    getfield ColorClass.colorName Ljava/lang/String;
+        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
+        //    ifne proceedLabel
+        //    ldc "Image Source"
+        //    aload_0
+        //    getfield ColorBridgeClass.targetColor LColorClass;
+        //    getfield ColorClass.colorName Ljava/lang/String;
+        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
+        //    ifne proceedLabel
+        //    ldc "Inherited"
+        //    aload_0
+        //    getfield ColorBridgeClass.targetColor LColorClass;
+        //    getfield ColorClass.colorName Ljava/lang/String;
+        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
+        //    ifne proceedLabel
         //    aload_0
         //    getfield ColorBridgeClass.targetColor LColorClass;
         //    invokevirtual ColorClass.getColorMethod ()getColorDesc;
@@ -942,6 +981,11 @@ public class BridgePatchClass extends PatchClass {
         //    aload_0
         //    getfield ColorBridgeClass.targetColor LColorClass;
         //    getfield ColorClass.isCustomized Z
+        //    ifeq notCustomizedLabel
+        //    aload_0
+        //    getfield ColorBridgeClass.targetColor LColorClass;
+        //    getfield ColorClass.alpha / colorIntegerValue
+        //    (check alpha != 0)
         //    ifeq notCustomizedLabel
         //    aload_0
         //    getfield ColorBridgeClass.targetColor LColorClass;
@@ -1005,6 +1049,18 @@ public class BridgePatchClass extends PatchClass {
             hook.add(hasNameLabel);
         }
 
+        // 3b. Ignore pseudo-styles / sentinels: "Same as background", "Transparent", "Image Source", "Inherited"
+        String[] sentinels = new String[]{"Same as background", "Transparent", "Image Source", "Inherited"};
+        for (String sentinel : sentinels) {
+            hook.add(new LabelNode());
+            hook.add(new LdcInsnNode(sentinel));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+            hook.add(new JumpInsnNode(Opcodes.IFNE, proceedLabel));
+        }
+
         // 4. Fetch color to trigger custom theme reload if needed
         hook.add(new LabelNode());
         hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
@@ -1019,7 +1075,31 @@ public class BridgePatchClass extends PatchClass {
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
         hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
 
-        // 6. Return this.targetColor directly if customized
+        // 5b. Alpha guard: only override relative resolution if color is non-transparent (alpha != 0)
+        String alphaField = PatchClass.mappings.get("ColorClass.alphaValue");
+        String intColorField = PatchClass.mappings.get("ColorClass.colorIntegerValue");
+
+        if (alphaField != null) {
+            // Pre-5.2: targetColor.alphaValue == 0.0f
+            hook.add(new LabelNode());
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, alphaField, "F"));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new InsnNode(Opcodes.FCMPL));
+            hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
+        } else if (intColorField != null) {
+            // Post-5.2: (targetColor.colorIntegerValue & 0xFF000000) == 0
+            hook.add(new LabelNode());
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, intColorField, "I"));
+            hook.add(new LdcInsnNode(0xFF000000));
+            hook.add(new InsnNode(Opcodes.IAND));
+            hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
+        }
+
+        // 6. Return this.targetColor directly if customized and non-transparent
         hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
         hook.add(new InsnNode(Opcodes.ARETURN));

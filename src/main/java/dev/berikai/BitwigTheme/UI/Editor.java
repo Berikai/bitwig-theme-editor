@@ -47,6 +47,12 @@ public class Editor extends JFrame {
 
     private boolean isDefunctColorKey(String key) {
         if ("Irrelevant Timeline Overlay".equals(key)) return true;
+        if ("Transparent".equals(key)
+                || "Image Source".equals(key)
+                || "Same as background".equals(key)
+                || "Inherited".equals(key)) {
+            return true;
+        }
         if (isBitwig6OrNewer) {
             return "Top Level Timeline Background".equals(key)
                     || "Dark Timeline Background".equals(key)
