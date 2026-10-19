@@ -10,6 +10,7 @@ import dev.berikai.BitwigTheme.core.IntegrityClass;
 import dev.berikai.BitwigTheme.core.impl.BridgePatchClass;
 import dev.berikai.BitwigTheme.core.impl.ColorPatchClass;
 import dev.berikai.BitwigTheme.core.impl.NoteFXPatchClass;
+import dev.berikai.BitwigTheme.core.impl.PianoRollPatchClass;
 import org.objectweb.asm.tree.FieldNode;
 
 import javax.swing.*;
@@ -151,6 +152,7 @@ public class Main {
         PatchClass colorClass = new ColorPatchClass(jar.getNodes());
         PatchClass bridgeClass = new BridgePatchClass(jar.getNodes());
         PatchClass noteFXClass = new NoteFXPatchClass(jar.getNodes());
+        PatchClass pianoRollClass = new PianoRollPatchClass(jar.getNodes());
 
         // Check if ColorClass already has the field "colorName"
         // This is to prevent double patching
@@ -169,7 +171,7 @@ public class Main {
             System.out.println(" -> Your bitwig.jar is already patched :)");
 
             if (!hasIsCustomized) {
-                System.out.println(" -> Note: An older patch was detected. To enable Note FX chain coloring and Knob overrides, please restore original jar from " + bitwig_path + ".bak (or reinstall) and re-patch.");
+                System.out.println(" -> Note: An older patch was detected. To enable Note FX chain coloring, Piano Roll, and Knob overrides, please restore original jar from " + bitwig_path + ".bak (or reinstall) and re-patch.");
             }
 
             // If already patched, try to migrate from 2.1.0 version for changing bte path
@@ -210,6 +212,7 @@ public class Main {
         colorClass.patch();
         bridgeClass.patch();
         noteFXClass.patch();
+        pianoRollClass.patch();
 
         // Disable integrity check
         IntegrityClass integrityClass = new IntegrityClass(jar.getNodes());

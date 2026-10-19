@@ -466,6 +466,8 @@ public class Editor extends JFrame {
         listModel2.clear();
 
         boolean hasNoteFX = false;
+        boolean hasPianoRoll = false;
+        boolean hasTimeline = false;
         // Read the theme file line by line, separate lines with ": " to get key and value
         // For each line, create a ColorPanel item and add it to the list1
         // Example line: background: #1e1e1e
@@ -498,6 +500,12 @@ public class Editor extends JFrame {
                     }
                     if (parts[0].startsWith("Note FX Chain")) {
                         hasNoteFX = true;
+                    }
+                    if (parts[0].startsWith("Piano Roll")) {
+                        hasPianoRoll = true;
+                    }
+                    if (parts[0].equals("Top Level Timeline Background")) {
+                        hasTimeline = true;
                     }
                     ColorPanel item;
                     try {
@@ -539,6 +547,50 @@ public class Editor extends JFrame {
                     bw.write(fx[0] + ": " + fx[1]);
                     bw.newLine();
                     ColorPanel item = new ColorPanel(fx[0], fx[1]);
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created by an older BTE version without Piano Roll colors, append them now
+        if (!hasPianoRoll) {
+            String[][] defaultPianoRoll = new String[][] {
+                {"Piano Roll Black Key", "#1a1a1a"},
+                {"Piano Roll White Key", "#ffffff1a"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Piano Roll Colors");
+                bw.newLine();
+                for (String[] pr : defaultPianoRoll) {
+                    bw.write(pr[0] + ": " + pr[1]);
+                    bw.newLine();
+                    ColorPanel item = new ColorPanel(pr[0], pr[1]);
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created by an older BTE version without Timeline styles, append them now
+        if (!hasTimeline) {
+            String[][] defaultTimeline = new String[][] {
+                {"Top Level Timeline Background", "#9c9c9c"},
+                {"Dark Timeline Background", "#9c9c9c"},
+                {"Light Timeline Background", "#acacac"},
+                {"Irrelevant Timeline Overlay", "#0000000a"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Timeline Colors");
+                bw.newLine();
+                for (String[] tl : defaultTimeline) {
+                    bw.write(tl[0] + ": " + tl[1]);
+                    bw.newLine();
+                    ColorPanel item = new ColorPanel(tl[0], tl[1]);
                     item.setComment("");
                     listModel.addElement(item);
                 }
