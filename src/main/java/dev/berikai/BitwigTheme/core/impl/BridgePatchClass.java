@@ -1044,8 +1044,54 @@ public class BridgePatchClass extends PatchClass {
             hook.add(hasNameLabel);
         }
 
-        // 3b. Ignore pseudo-styles / sentinels: "Same as background", "Transparent", "Image Source", "Inherited"
-        String[] sentinels = new String[]{"Same as background", "Transparent", "Image Source", "Inherited"};
+        // 3b. Handle "Same as background" (Issue #32):
+        // Polysynth and mixer knobs use "Same as background" style. If user customized "Knob Body",
+        // we check if "Knob Body" is defined in theme.bte and override the knob with that color!
+        // If "Knob Body" is not customized, restore "Same as background" and proceed with stock dynamic calculation.
+        LabelNode notSameAsBg = new LabelNode();
+        LabelNode knobNotCustomized = new LabelNode();
+
+        hook.add(new LabelNode());
+        hook.add(new LdcInsnNode("Same as background"));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, notSameAsBg));
+
+        // It is "Same as background": check if "Knob Body" is customized
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new LdcInsnNode("Knob Body"));
+        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
+        hook.add(new InsnNode(Opcodes.POP));
+
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, knobNotCustomized));
+
+        // "Knob Body" IS customized: return targetColor
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new InsnNode(Opcodes.ARETURN));
+
+        // Not customized as "Knob Body": restore "Same as background" and proceed with stock calculation
+        hook.add(knobNotCustomized);
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new LdcInsnNode("Same as background"));
+        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+        hook.add(new JumpInsnNode(Opcodes.GOTO, proceedLabel));
+
+        hook.add(notSameAsBg);
+
+        // 3c. Ignore remaining pseudo-styles / sentinels: "Transparent", "Image Source", "Inherited"
+        String[] sentinels = new String[]{"Transparent", "Image Source", "Inherited"};
         for (String sentinel : sentinels) {
             hook.add(new LabelNode());
             hook.add(new LdcInsnNode(sentinel));
