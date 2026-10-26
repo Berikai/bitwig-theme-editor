@@ -37,6 +37,8 @@ You can also manage themes manually after patching Bitwig Studio:
    - **Linux:** `~/.config/bitwig-theme-editor/versions/<version>/` 
        - (or `$XDG_CONFIG_HOME/bitwig-theme-editor/versions/<version>/`, or `~/.bitwig-theme-editor/versions/<version>/` if already existing)
    - **macOS:** `~/.bitwig-theme-editor/versions/<version>/`
+
+   See [Config directory](#config-directory) for the full resolution order, migration rules and overrides.
 3. Create or edit `theme.bte` in the same directory (or in `.bitwig-theme-editor/theme.bte` if **Global Theme** is enabled)
 4. Add or modify `Color Name: #hex` lines and save
 5. Click the **Dashboard Button** or resize the Bitwig Studio window to apply changes
@@ -55,15 +57,44 @@ You can also manage themes manually after patching Bitwig Studio:
   ```
 - **Direct CLI patching:**
   ```sh
-  java -jar bitwig-theme-editor.jar [--global-theme] <bitwig-jar-path>
+  java -jar bitwig-theme-editor.jar [--global-theme] [--config-dir <path>] <bitwig-jar-path>
   ```
   - `--global-theme` *(optional)*: Share a single `~/.bitwig-theme-editor/theme.bte` (or `%APPDATA%\.bitwig-theme-editor\theme.bte`) across all patched Bitwig Studio installations.
+  - `--config-dir <path>` *(optional)*: Override the config directory. Can also be set with the `BTE_CONFIG_DIR` environment variable (see [Config directory](#config-directory)).
 
 > Note: `apply` and `export` are deprecated. The theme editor patches `bitwig.jar` once, and patched Bitwig Studio watches `theme.bte` for changes.
 
 ---
 
 <details>
+
+<summary>Config directory</summary>
+
+### Config directory
+
+Bitwig Theme Editor keeps its configuration, downloaded themes and per-version `.bte` files in one directory. It is resolved in this order:
+
+| Priority | Platform | Directory |
+| --- | --- | --- |
+| 1 | Any | `--config-dir <path>` command-line option |
+| 2 | Any | `BTE_CONFIG_DIR` environment variable |
+| 3 | Windows | `%APPDATA%\.bitwig-theme-editor` (falls back to `~\.bitwig-theme-editor` when `APPDATA` is unset) |
+| 4 | macOS | `~/.bitwig-theme-editor` (kept for backwards compatibility) |
+| 5 | Linux / Unix | `~/.bitwig-theme-editor` when it already contains user data |
+| 6 | Linux / Unix | `$XDG_CONFIG_HOME/bitwig-theme-editor`, defaulting to `~/.config/bitwig-theme-editor` |
+
+Notes:
+
+- The resolved directory is printed on startup, for example `Config directory: /home/<username>/.config/bitwig-theme-editor (XDG_CONFIG_HOME)`.
+- A leading `~` in `BTE_CONFIG_DIR` or `--config-dir` is expanded, and relative values are resolved against your home directory.
+- Per the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/), `XDG_CONFIG_HOME` must be an absolute path; relative values are ignored with a warning.
+- On Linux, an existing `~/.bitwig-theme-editor` is only kept when it contains data. Empty leftovers are ignored, and if both locations contain data the legacy one wins with a warning.
+- The config directory is compiled into the patched `bitwig.jar`. If you change it, re-patch Bitwig Studio (the GUI does this on launch) so both use the same directory, and set the override consistently (shell profile, desktop entry, ...).
+
+</details>
+
+<details>
+
 <summary>Development</summary>
 
 ### Built With
