@@ -12,6 +12,7 @@ import dev.berikai.BitwigTheme.core.impl.ColorPatchClass;
 import dev.berikai.BitwigTheme.core.impl.NoteFXPatchClass;
 import dev.berikai.BitwigTheme.core.impl.PianoRollPatchClass;
 import dev.berikai.BitwigTheme.core.impl.EQPatchClass;
+import dev.berikai.BitwigTheme.core.impl.SamplerPianoPatchClass;
 import org.objectweb.asm.tree.FieldNode;
 
 import javax.swing.*;
@@ -172,6 +173,7 @@ public class Main {
         PatchClass noteFXClass = new NoteFXPatchClass(jar.getNodes());
         PatchClass pianoRollClass = new PianoRollPatchClass(jar.getNodes());
         PatchClass eqClass = new EQPatchClass(jar.getNodes());
+        PatchClass samplerPianoClass = new SamplerPianoPatchClass(jar.getNodes());
 
         // Check if ColorClass already has the field "colorName"
         // This is to prevent double patching
@@ -248,6 +250,12 @@ public class Main {
             eqClass.patch();
         } else {
             System.out.println("WARNING: Skipping EQ bands patch (widget not identified in this version).");
+        }
+
+        if (samplerPianoClass.getClassNode() != null && samplerPianoClass.getMethodNode() != null) {
+            samplerPianoClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Sampler piano patch (widget not identified in this version).");
         }
 
         // Disable integrity check
