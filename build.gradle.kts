@@ -16,6 +16,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("org.ow2.asm:asm:9.8")
     implementation("org.ow2.asm:asm-tree:9.8")
+    implementation("org.ow2.asm:asm-analysis:9.8")
+    implementation("org.ow2.asm:asm-util:9.8")
     implementation("com.intellij:forms_rt:7.0.3")
 }
 

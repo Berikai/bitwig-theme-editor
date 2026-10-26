@@ -59,7 +59,6 @@ public class PianoRollPatchClass extends PatchClass {
                 if (has07 && has01) {
                     this.classNode = cn;
                     PatchClass.mappings.put("PianoRollKeysClass", cn.name);
-                    JarNode.getModifiedNodes().put(cn.name, cn);
                     break outer;
                 }
             }
@@ -143,6 +142,11 @@ public class PianoRollPatchClass extends PatchClass {
                 }
             }
         }
+
+        if (targets.isEmpty()) return;
+
+        // Register class for modification only after verifying targets
+        JarNode.getModifiedNodes().put(classNode.name, classNode);
 
         for (int i = 0; i < targets.size(); i++) {
             AbstractInsnNode targetInsn = targets.get(i);

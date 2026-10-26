@@ -154,9 +154,21 @@ public class Main {
         bitwigVersion = bwClass.getVersion();
         System.out.println("Detected Bitwig Studio version: " + bitwigVersion);
 
-        // Initialize class patchers
+        // Initialize Tier 1 (Core) class patchers
         PatchClass colorClass = new ColorPatchClass(jar.getNodes());
         PatchClass bridgeClass = new BridgePatchClass(jar.getNodes());
+
+        // Tier 1 Validation: Core theming engine must be present and valid
+        if (colorClass.getClassNode() == null || bridgeClass.getClassNode() == null) {
+            String msg = "Core theming engine could not be identified for Bitwig Studio version: " + bitwigVersion + "\nPatching aborted to protect your installation.";
+            System.out.println("ERROR: " + msg);
+            if (isGUI) {
+                JOptionPane.showMessageDialog(null, msg, "Version Incompatible", JOptionPane.ERROR_MESSAGE);
+            }
+            return 2;
+        }
+
+        // Initialize Tier 2 (Widget Enhancements) class patchers
         PatchClass noteFXClass = new NoteFXPatchClass(jar.getNodes());
         PatchClass pianoRollClass = new PianoRollPatchClass(jar.getNodes());
         PatchClass eqClass = new EQPatchClass(jar.getNodes());
@@ -215,12 +227,28 @@ public class Main {
         }
         System.out.println();
 
-        // Apply patches
+        // Apply Tier 1 (Core) patches
         colorClass.patch();
         bridgeClass.patch();
-        noteFXClass.patch();
-        pianoRollClass.patch();
-        eqClass.patch();
+
+        // Apply Tier 2 (Widget Enhancements) patches safely
+        if (noteFXClass.getClassNode() != null && noteFXClass.getMethodNode() != null) {
+            noteFXClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Note FX chain patch (widget not identified in this version).");
+        }
+
+        if (pianoRollClass.getClassNode() != null && pianoRollClass.getMethodNode() != null) {
+            pianoRollClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Piano Roll patch (widget not identified in this version).");
+        }
+
+        if (eqClass.getClassNode() != null && eqClass.getMethodNode() != null) {
+            eqClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping EQ bands patch (widget not identified in this version).");
+        }
 
         // Disable integrity check
         IntegrityClass integrityClass = new IntegrityClass(jar.getNodes());

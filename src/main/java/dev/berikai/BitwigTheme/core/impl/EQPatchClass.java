@@ -56,7 +56,6 @@ public class EQPatchClass extends PatchClass {
                 if (has44 && has3_2 && has260) {
                     this.classNode = cn;
                     PatchClass.mappings.put("EQClass", cn.name);
-                    JarNode.getModifiedNodes().put(cn.name, cn);
                     break outer;
                 }
             }
@@ -132,6 +131,11 @@ public class EQPatchClass extends PatchClass {
                 returns.add(insn);
             }
         }
+
+        if (returns.isEmpty()) return;
+
+        // Register class for modification only after verifying method and returns
+        JarNode.getModifiedNodes().put(classNode.name, classNode);
 
         // Insert bytecode before each return
         for (AbstractInsnNode ret : returns) {

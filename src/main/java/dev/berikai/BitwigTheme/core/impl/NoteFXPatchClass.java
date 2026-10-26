@@ -51,7 +51,6 @@ public class NoteFXPatchClass extends PatchClass {
                 if (has200 && has70) {
                     this.classNode = cn;
                     PatchClass.mappings.put("NoteFXClass", cn.name);
-                    JarNode.getModifiedNodes().put(cn.name, cn);
                     break outer;
                 }
             }
@@ -118,6 +117,11 @@ public class NoteFXPatchClass extends PatchClass {
                 returns.add(insn);
             }
         }
+
+        if (returns.isEmpty()) return;
+
+        // Register class for modification only after verifying method and returns
+        JarNode.getModifiedNodes().put(classNode.name, classNode);
 
         // Insert bytecode before each return
         for (AbstractInsnNode ret : returns) {

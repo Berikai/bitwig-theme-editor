@@ -65,4 +65,8 @@ public abstract class PatchClass {
     public ClassNode getClassNode() {
         return classNode;
     }
+
+    public MethodNode getMethodNode() {
+        return methodNode;
+    }
 }

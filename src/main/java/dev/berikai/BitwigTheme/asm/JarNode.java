@@ -18,6 +18,7 @@ import java.util.zip.ZipOutputStream;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.util.CheckClassAdapter;
 
 public class JarNode {
     // Path to input jar file
@@ -90,21 +91,13 @@ public class JarNode {
     }
 
     public void export(String path, boolean backup) throws IOException {
-        // Backup original jar file, just in case
-        if (backup && Files.exists(Paths.get(path))) {
-            Files.copy(Paths.get(path), Paths.get(path + ".bak"), StandardCopyOption.REPLACE_EXISTING);
-        }
+        String tmpPath = path + ".tmp";
 
-        // Create output ZipOutputStream
-        ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(path));
-
-        // Iterate through all class nodes and modified nodes, write modified classes
-        for (ClassNode classNode : nodes.values()) {
-            for (String className : modifiedNodes.keySet()) {
-                if (classNode.name.equals(className)) {
-                    outputStream.putNextEntry(new ZipEntry(classNode.name + ".class"));
-
-                    // Use COMPUTE_FRAMES by default, unless the class is in computeMaxNodes list
+        try {
+            // 1. Pre-flight verification: serialize and verify all modified classes in memory first
+            HashMap<String, byte[]> serializedClasses = new HashMap<>();
+            for (ClassNode classNode : nodes.values()) {
+                if (modifiedNodes.containsKey(classNode.name)) {
                     int flag = ClassWriter.COMPUTE_FRAMES;
                     for (String computeMaxNode : computeMaxNodes) {
                         if (classNode.name.startsWith(computeMaxNode)) {
@@ -113,26 +106,69 @@ public class JarNode {
                         }
                     }
 
-                    // Write class to output stream
-                    // We use custom ClassWriter to avoid issues with certain class structures
                     ClassWriter writer = new CustomClassWriter(flag);
                     classNode.accept(writer);
-                    outputStream.write(writer.toByteArray());
+                    byte[] classBytes = writer.toByteArray();
+
+                    // Run in-memory structural verification
+                    try {
+                        ClassReader cr = new ClassReader(classBytes);
+                        ClassNode verifyNode = new ClassNode();
+                        CheckClassAdapter cca = new CheckClassAdapter(verifyNode, false);
+                        cr.accept(cca, 0);
+                    } catch (Exception ve) {
+                        throw new IllegalStateException("Bytecode verification failed for class: " + classNode.name + ". Export aborted to prevent corrupting JAR.", ve);
+                    }
+
+                    serializedClasses.put(classNode.name, classBytes);
+                }
+            }
+
+            // 2. Write to temporary JAR file
+            try (ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(tmpPath))) {
+                // Write modified classes
+                for (Map.Entry<String, byte[]> entry : serializedClasses.entrySet()) {
+                    outputStream.putNextEntry(new ZipEntry(entry.getKey() + ".class"));
+                    outputStream.write(entry.getValue());
+                    outputStream.closeEntry();
+                }
+
+                // Write all unmodified files from original JAR
+                outer: for (Map.Entry<String, byte[]> entry : files.entrySet()) {
+                    for (String className : modifiedNodes.keySet()) {
+                        if (entry.getKey().equals(className + ".class")) continue outer;
+                    }
+                    outputStream.putNextEntry(new ZipEntry(entry.getKey()));
+                    outputStream.write(entry.getValue());
                     outputStream.closeEntry();
                 }
             }
-        }
 
-        // Write all other files that are not class files or modified
-        outer: for (Map.Entry<String, byte[]>  entry : files.entrySet()) {
-            for (String className : modifiedNodes.keySet()) {
-                if (entry.getKey().equals(className + ".class")) continue outer;
+            // 3. Verify temporary JAR archive integrity
+            try (ZipFile testZip = new ZipFile(tmpPath)) {
+                if (testZip.size() == 0) {
+                    throw new IOException("Exported temporary JAR is empty or corrupt.");
+                }
             }
-            outputStream.putNextEntry(new ZipEntry(entry.getKey()));
-            outputStream.write(entry.getValue());
-            outputStream.closeEntry();
+
+            // 4. Create backup of original JAR if requested
+            if (backup && Files.exists(Paths.get(path))) {
+                Files.copy(Paths.get(path), Paths.get(path + ".bak"), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            // 5. Atomically replace original JAR with verified temporary JAR
+            try {
+                Files.move(Paths.get(tmpPath), Paths.get(path), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                // Fallback to standard replace if filesystem does not support atomic move
+                Files.move(Paths.get(tmpPath), Paths.get(path), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            // Clean up temporary file if it remains
+            try {
+                Files.deleteIfExists(Paths.get(tmpPath));
+            } catch (Exception ignored) {}
         }
-        outputStream.close();
     }
 
     // Getters for fields
