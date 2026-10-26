@@ -124,6 +124,8 @@ public class JarNode {
                 }
             }
 
+            System.out.println(" -> Verified bytecode integrity for " + serializedClasses.size() + " modified classes.");
+
             // 2. Write to temporary JAR file
             try (ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(tmpPath))) {
                 // Write modified classes
