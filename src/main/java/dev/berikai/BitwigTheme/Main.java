@@ -22,6 +22,7 @@ public class Main {
     public static String version; // Project version
     public static String bitwigVersion; // Bitwig Studio version, obtained from BitwigClass
     public static String configPath; // Path to config directory
+    private static String configPathError; // Why the config directory could not be initialized, null if usable
     public static JarNode jar; // ASM-tree JarNode object for bitwig.jar
     public static boolean isGUI = false; // Whether the app is running with GUI or command line
     public static boolean isGlobalTheme = false; // Whether to use a global theme file instead of version-specific
@@ -31,7 +32,14 @@ public class Main {
         String jarName = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()).getName();
 
         // Print usage
-        System.out.println("Usage:  java -jar " + jarName + " [--global-theme] <bitwig-jar-path>");
+        System.out.println("Usage:  java -jar " + jarName + " [--global-theme] [--config-dir <path>] [<bitwig-jar-path>]");
+        System.out.println();
+        System.out.println("Options:");
+        System.out.println("  --global-theme       Use a single theme.bte for all Bitwig versions");
+        System.out.println("  --config-dir <path>  Override the config directory (default: platform-specific)");
+        System.out.println();
+        System.out.println("If <bitwig-jar-path> is omitted, the graphical editor is launched.");
+        System.out.println("The " + ConfigPaths.ENV_OVERRIDE + " environment variable can also override the config directory.");
     }
 
     public static void main(String[] args) throws Exception {
@@ -44,12 +52,55 @@ public class Main {
         System.out.println("DISCLAIMER: This is an unofficial free open source 3rd party tool, made with educational purposes only. Author is not responsible for any damage caused by using this tool. Use at your own risk.");
         System.out.println();
 
-        // Initialize config path
-        // (Windows: %APPDATA%\.bitwig-theme-editor, Linux: $XDG_CONFIG_HOME/bitwig-theme-editor or ~/.bitwig-theme-editor, macOS: ~/.bitwig-theme-editor, or custom via BTE_CONFIG_DIR)
-        initializeConfigPath();
+        // Parse arguments. The GUI is launched when no bitwig.jar path is given.
+        String bitwigPath = null;
+        String configDirOverride = null;
+        boolean wrongUsage = false;
 
-        // Run UI, if no argument given
-        if (args.length == 0) {
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if (arg.equals("--global-theme")) {
+                isGlobalTheme = true;
+            } else if (arg.equals("--config-dir")) {
+                if (i + 1 >= args.length) {
+                    wrongUsage = true;
+                    break;
+                }
+                configDirOverride = args[++i].trim();
+            } else if (arg.startsWith("--config-dir=")) {
+                configDirOverride = arg.substring("--config-dir=".length()).trim();
+            } else if (arg.startsWith("--")) {
+                System.out.println("ERROR: Unknown option: " + arg);
+                wrongUsage = true;
+                break;
+            } else if (bitwigPath == null) {
+                bitwigPath = arg;
+            } else {
+                wrongUsage = true; // Too many arguments
+                break;
+            }
+        }
+
+        // Print usage, if arguments are invalid
+        if (wrongUsage) {
+            System.out.println("ERROR: Wrong usage!");
+            System.out.println();
+            printUsage();
+            return;
+        }
+
+        if (configDirOverride != null && configDirOverride.isEmpty()) {
+            configDirOverride = null;
+        }
+
+        // Initialize the config directory.
+        // Precedence: --config-dir > BTE_CONFIG_DIR > platform defaults (see ConfigPaths).
+        String configDirOrigin = configDirOverride != null ? "--config-dir" : ConfigPaths.ENV_OVERRIDE;
+        String configDirValue = configDirOverride != null ? configDirOverride : System.getenv(ConfigPaths.ENV_OVERRIDE);
+        initializeConfigPath(configDirValue, configDirOrigin);
+
+        // Run UI, if no bitwig.jar path was given
+        if (bitwigPath == null) {
             // macOS specific settings
             if(SystemInfo.isMacOS) {
                 System.setProperty("apple.awt.application.name", "Bitwig Theme Editor");
@@ -58,6 +109,14 @@ public class Main {
             }
 
             UIManager.setLookAndFeel(new FlatMTMaterialDarkerIJTheme());
+
+            if (configPathError != null) {
+                if (!GraphicsEnvironment.isHeadless()) {
+                    JOptionPane.showMessageDialog(null, configPathError, "Configuration Error", JOptionPane.ERROR_MESSAGE);
+                }
+                return;
+            }
+
             try {
                 isGUI = true;
                 new MainUI();
@@ -72,43 +131,28 @@ public class Main {
             return;
         }
 
-        // Parse arguments
-        String bitwig_path = null;
-        for (String arg : args) {
-            if (arg.equals("--global-theme")) {
-                isGlobalTheme = true;
-            } else if (bitwig_path == null) {
-                bitwig_path = arg;
-            } else {
-                bitwig_path = null; // Too many arguments
-                break;
-            }
-        }
-
-        // Print usage, if argument is invalid
-        if (bitwig_path == null) {
-            System.out.println("ERROR: Wrong usage!");
-            System.out.println();
-            printUsage();
-            return;
+        // The config directory path is embedded into the patched jar, so stop early
+        // when it is unusable instead of producing a broken patch.
+        if (configPathError != null) {
+            System.exit(1);
         }
 
         // Create an ASM-tree JarNode object for bytecode manipulation
         try {
-            jar = new JarNode(bitwig_path);
+            jar = new JarNode(bitwigPath);
         } catch (ZipException e) {
-            System.out.println("ERROR: JAR file " + bitwig_path + " is not valid or corrupted.");
+            System.out.println("ERROR: JAR file " + bitwigPath + " is not valid or corrupted.");
             System.out.println();
             throw new RuntimeException(e);
         } catch (Exception e) {
-            System.out.println("ERROR: JAR file " + bitwig_path + " does not exist or could not be accessed. Try to run as admin/root.");
+            System.out.println("ERROR: JAR file " + bitwigPath + " does not exist or could not be accessed. Try to run as admin/root.");
             System.out.println();
             throw new RuntimeException(e);
         }
 
         // Patch jar
         // 1 = success, 0 = fail
-        final int result = applyPatch(bitwig_path, jar);
+        final int result = applyPatch(bitwigPath, jar);
         if(result == 1) {
             // Brief usage instruction
             System.out.println("Patch successful!");
@@ -349,47 +393,37 @@ public class Main {
     }
 
 
-    private static void initializeConfigPath() {
-        String os = System.getProperty("os.name").toLowerCase();
-        String customEnv = System.getenv("BTE_CONFIG_DIR");
+    private static void initializeConfigPath(String overrideValue, String overrideOrigin) {
+        ConfigPaths.Resolution resolution = ConfigPaths.resolve(
+                System.getProperty("os.name"),
+                System.getProperty("user.home"),
+                System.getenv("APPDATA"),
+                System.getenv(ConfigPaths.ENV_XDG_CONFIG_HOME),
+                overrideValue,
+                overrideOrigin);
 
-        File configDir;
-
-        // 1. Explicit override via environment variable
-        if (customEnv != null && !customEnv.trim().isEmpty()) {
-            configDir = new File(customEnv.trim());
-        } else if (os.contains("win")) {
-            // Windows: %APPDATA%\.bitwig-theme-editor
-            String base = System.getenv("APPDATA");
-            String basePath = (base != null && !base.trim().isEmpty()) ? base : System.getProperty("user.home");
-            configDir = new File(basePath, ".bitwig-theme-editor");
-        } else {
-            // Unix-like (Linux & macOS)
-            File legacyDir = new File(System.getProperty("user.home"), ".bitwig-theme-editor");
-
-            if (os.contains("mac")) {
-                // macOS: maintain ~/.bitwig-theme-editor default for consistency
-                configDir = legacyDir;
-            } else {
-                // Linux: adhere to XDG Base Directory Specification
-                // If legacy directory already exists, preserve it to prevent breaking existing installations
-                if (legacyDir.exists() && legacyDir.isDirectory()) {
-                    configDir = legacyDir;
-                } else {
-                    String xdgConfig = System.getenv("XDG_CONFIG_HOME");
-                    if (xdgConfig != null && !xdgConfig.trim().isEmpty()) {
-                        configDir = new File(xdgConfig.trim(), "bitwig-theme-editor");
-                    } else {
-                        configDir = new File(System.getProperty("user.home"), ".config" + File.separator + "bitwig-theme-editor");
-                    }
-                }
-            }
+        for (String warning : resolution.warnings()) {
+            System.err.println("WARNING: " + warning);
         }
 
-        // Create directory if it doesn't exist
-        if (!configDir.exists()) {
-            if (configDir.mkdirs()) {
-                System.out.println("Created config directory: " + configDir.getAbsolutePath());
+        File configDir = resolution.directory();
+        boolean created = false;
+        if (!configDir.isDirectory()) {
+            created = configDir.mkdirs();
+        }
+
+        if (!configDir.isDirectory()) {
+            System.err.println("ERROR: Could not create the config directory: " + configDir);
+            System.err.println(" -> Check the path and its permissions, or set " + ConfigPaths.ENV_OVERRIDE
+                    + " to a writable directory.");
+            configPathError = "Could not create the config directory:\n" + configDir
+                    + "\n\nCheck the path and its permissions, or set " + ConfigPaths.ENV_OVERRIDE
+                    + " to a writable directory.";
+        } else {
+            System.out.println((created ? "Created config directory: " : "Config directory: ")
+                    + configDir + " (" + resolution.origin() + ")");
+            if (!configDir.canWrite()) {
+                System.err.println("WARNING: The config directory is not writable: " + configDir);
             }
         }
 
@@ -401,8 +435,11 @@ public class Main {
         String directoryPath = configPath + File.separator + versionDirName + File.separator + bitwigVersion;
 
         // Create directory if it doesn't exist
-        if(new File(directoryPath).mkdirs()) {
+        File versionDir = new File(directoryPath);
+        if (versionDir.mkdirs()) {
             System.out.println("Created version config directory: " + directoryPath);
+        } else if (!versionDir.isDirectory()) {
+            System.err.println("ERROR: Could not create version config directory: " + directoryPath);
         }
 
         return directoryPath + File.separator + filename;
