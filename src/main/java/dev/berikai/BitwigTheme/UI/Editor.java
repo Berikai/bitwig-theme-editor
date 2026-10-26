@@ -496,6 +496,7 @@ public class Editor extends JFrame {
         boolean hasNoteFX = false;
         boolean hasPianoRoll = false;
         boolean hasEQ = false;
+        boolean hasSamplerPiano = false;
         boolean needsSanitization = false;
 
         // Read the theme file line by line, separate lines with ": " to get key and value
@@ -540,6 +541,9 @@ public class Editor extends JFrame {
                     }
                     if (key.startsWith("EQ Band") || key.equals("EQ Curve Line")) {
                         hasEQ = true;
+                    }
+                    if (key.startsWith("Sampler")) {
+                        hasSamplerPiano = true;
                     }
                     String value = parts[1].split("//")[0].trim();
                     if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
@@ -641,6 +645,30 @@ public class Editor extends JFrame {
             } catch (Exception ignored) {}
         }
 
+        // If default.bte was created by an older BTE version without Sampler Piano colors, append them now
+        if (!hasSamplerPiano) {
+            String[][] defaultSamplerPiano = new String[][] {
+                {"Sampler White Key (Active)", "#b3b3b3"},
+                {"Sampler White Key (Inactive)", "#808080"},
+                {"Sampler Black Key (Active)", "#1a1a1a"},
+                {"Sampler Black Key (Inactive)", "#4d4d4d"},
+                {"Sampler Octave Text", "#1a1a1a"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Sampler Piano Keyboard Colors");
+                bw.newLine();
+                for (String[] sp : defaultSamplerPiano) {
+                    bw.write(sp[0] + ": " + sp[1]);
+                    bw.newLine();
+                    ColorPanel item = new ColorPanel(sp[0], sp[1]);
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
         // If default.bte contained defunct keys or outdated color values, sanitize default.bte on disk
         if (needsSanitization) {
             try (PrintWriter writer = new PrintWriter(themeFile)) {
@@ -699,8 +727,8 @@ public class Editor extends JFrame {
                     for (Object _panel : listModel.toArray()) {
                         if (!(_panel instanceof ColorPanel)) continue;
                         ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(rawKey) : rawKey;
-                        if (panel.getKey().equals(colorKey)) {
+                        String colorKey = normalizeColorKey(rawKey);
+                        if (panel.getKey().equals(colorKey) || panel.getKey().equals(rawKey)) {
                             try {
                                 panel.setValue(rawValue);
                                 try {
@@ -771,8 +799,8 @@ public class Editor extends JFrame {
                     for (Object _panel : listModel.toArray()) {
                         if (!(_panel instanceof ColorPanel)) continue;
                         ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(rawKey) : rawKey;
-                        if (panel.getKey().equals(colorKey)) {
+                        String colorKey = normalizeColorKey(rawKey);
+                        if (panel.getKey().equals(colorKey) || panel.getKey().equals(rawKey)) {
                             try {
                                 panel.setValue(rawValue);
                                 updateModifiedList(panel);
@@ -869,14 +897,105 @@ public class Editor extends JFrame {
             } else {
                 panelsToSave = !allItems1.isEmpty() ? allItems1.toArray() : listModel.toArray();
             }
+            java.util.Set<String> writtenKeys = new java.util.HashSet<>();
             for (Object _panel : panelsToSave) {
                 if (!(_panel instanceof ColorPanel)) continue;
                 ColorPanel panel = (ColorPanel) _panel;
                 if (isDefunctColorKey(panel.getKey())) continue;
-                writer.println(panel.getKey() + ": " + panel.getValue() + (!panel.getComment().isEmpty() ? " // " + panel.getComment() : ""));
+                String key = panel.getKey();
+                String val = panel.getValue();
+                String comment = !panel.getComment().isEmpty() ? " // " + panel.getComment() : "";
+
+                if (writtenKeys.add(key)) {
+                    writer.println(key + ": " + val + comment);
+                }
+                writeCrossVersionAliases(writer, key, val, writtenKeys);
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Failed to save theme file!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void writeCrossVersionAliases(PrintWriter writer, String key, String val, java.util.Set<String> writtenKeys) {
+        String[] aliases = null;
+        switch (key) {
+            case "Grid Line (Primary)":
+                aliases = new String[]{"Timeline Primary Grid", "Timeline Header Primary Grid"};
+                break;
+            case "Timeline Primary Grid":
+            case "Timeline Header Primary Grid":
+                aliases = new String[]{"Grid Line (Primary)"};
+                break;
+            case "Grid Line (Secondary)":
+                aliases = new String[]{"Timeline Secondary Grid", "Timeline Header Secondary Grid"};
+                break;
+            case "Timeline Secondary Grid":
+            case "Timeline Header Secondary Grid":
+                aliases = new String[]{"Grid Line (Secondary)"};
+                break;
+            case "Accent (hitech)":
+                aliases = new String[]{"Hitech on"};
+                break;
+            case "Hitech on":
+                aliases = new String[]{"Accent (hitech)"};
+                break;
+            case "Accent (default)":
+                aliases = new String[]{"On"};
+                break;
+            case "On":
+                aliases = new String[]{"Accent (default)"};
+                break;
+            default:
+                break;
+        }
+        if (aliases != null) {
+            for (String alias : aliases) {
+                if (writtenKeys.add(alias)) {
+                    writer.println(alias + ": " + val);
+                }
+            }
+        }
+    }
+
+    private String normalizeColorKey(String rawKey) {
+        if (isBitwig6OrNewer) {
+            return compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(rawKey) : rawKey;
+        } else {
+            return matchColorNameToBitwig4And5(rawKey);
+        }
+    }
+
+    private String matchColorNameToBitwig4And5(String newName) {
+        // Map new color names back to old ones for Bitwig 4 & 5 backwards compatibility
+        switch (newName) {
+            case "Accent (default)":
+                return "On";
+            case "Accent (hitech)":
+                return "Hitech on";
+            case "Grid Line (Primary)":
+                return "Timeline Primary Grid";
+            case "Grid Line (Secondary)":
+                return "Timeline Secondary Grid";
+            case "Grey 0":
+                return "Hole (dark)";
+            case "Grey 1":
+                return "Dark Timeline Background";
+            case "Grey 2":
+                return "Light Timeline Background";
+            case "Grey 3":
+                return "Hole (medium)";
+            case "Grey 5":
+                return "Panel body";
+            case "Grey 6":
+                return "Selected Panel body";
+            case "Panel Stroke (focused)":
+                return "Active Panel stroke";
+            case "White Selection":
+                return "Selection";
+            case "White Selection (standby)":
+                return "Standby selection";
+            default:
+                return newName;
         }
     }
 
@@ -887,6 +1006,12 @@ public class Editor extends JFrame {
                 return "Accent (default)";
             case "Hitech on":
                 return "Accent (hitech)";
+            case "Timeline Primary Grid":
+            case "Timeline Header Primary Grid":
+                return "Grid Line (Primary)";
+            case "Timeline Secondary Grid":
+            case "Timeline Header Secondary Grid":
+                return "Grid Line (Secondary)";
             case "Hole (dark)":
                 return "Grey 0";
             case "Dark Timeline Background":
@@ -894,16 +1019,23 @@ public class Editor extends JFrame {
             case "Light Timeline Background":
                 return "Grey 2";
             case "Hole (medium)": // and Hole (light)
+            case "Hole (light)":
                 return "Grey 3";
             case "Panel body": // and Window Background
+            case "Content Background":
+            case "Dialog background":
                 return "Grey 5";
             case "Selected Panel body": // and Window Background
                 return "Grey 6";
-            // TODO: More to add...
+            case "Active Panel stroke":
+                return "Panel Stroke (focused)";
+            case "Selection":
+                return "White Selection";
+            case "Standby selection":
+                return "White Selection (standby)";
             default:
                 return oldName;
         }
-
     }
 
     private void showAboutDialog() {
