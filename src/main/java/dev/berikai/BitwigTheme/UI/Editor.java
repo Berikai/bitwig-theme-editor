@@ -20,8 +20,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.net.URI;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Scanner;
+import java.util.Set;
 
 import static java.lang.String.format;
 
@@ -499,6 +501,7 @@ public class Editor extends JFrame {
         boolean hasSamplerPiano = false;
         boolean hasSamplerPressed = false;
         boolean needsSanitization = false;
+        Set<String> seenKeys = new HashSet<>();
 
         // Read the theme file line by line, separate lines with ": " to get key and value
         // For each line, create a ColorPanel item and add it to the list1
@@ -531,6 +534,10 @@ public class Editor extends JFrame {
                         continue;
                     }
                     if (isDefunctColorKey(key)) {
+                        needsSanitization = true;
+                        continue;
+                    }
+                    if (!seenKeys.add(key)) {
                         needsSanitization = true;
                         continue;
                     }
@@ -593,9 +600,11 @@ public class Editor extends JFrame {
                 for (String[] fx : defaultNoteFX) {
                     bw.write(fx[0] + ": " + fx[1]);
                     bw.newLine();
-                    ColorPanel item = new ColorPanel(fx[0], fx[1]);
-                    item.setComment("");
-                    listModel.addElement(item);
+                    if (seenKeys.add(fx[0])) {
+                        ColorPanel item = new ColorPanel(fx[0], fx[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
                 }
             } catch (Exception ignored) {}
         }
@@ -614,9 +623,11 @@ public class Editor extends JFrame {
                 for (String[] pr : defaultPianoRoll) {
                     bw.write(pr[0] + ": " + pr[1]);
                     bw.newLine();
-                    ColorPanel item = new ColorPanel(pr[0], pr[1]);
-                    item.setComment("");
-                    listModel.addElement(item);
+                    if (seenKeys.add(pr[0])) {
+                        ColorPanel item = new ColorPanel(pr[0], pr[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
                 }
             } catch (Exception ignored) {}
         }
@@ -642,9 +653,11 @@ public class Editor extends JFrame {
                 for (String[] eq : defaultEQ) {
                     bw.write(eq[0] + ": " + eq[1]);
                     bw.newLine();
-                    ColorPanel item = new ColorPanel(eq[0], eq[1]);
-                    item.setComment("");
-                    listModel.addElement(item);
+                    if (seenKeys.add(eq[0])) {
+                        ColorPanel item = new ColorPanel(eq[0], eq[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
                 }
             } catch (Exception ignored) {}
         }
@@ -668,9 +681,11 @@ public class Editor extends JFrame {
                 for (String[] sp : defaultSamplerPiano) {
                     bw.write(sp[0] + ": " + sp[1]);
                     bw.newLine();
-                    ColorPanel item = new ColorPanel(sp[0], sp[1]);
-                    item.setComment("");
-                    listModel.addElement(item);
+                    if (seenKeys.add(sp[0])) {
+                        ColorPanel item = new ColorPanel(sp[0], sp[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
                 }
             } catch (Exception ignored) {}
         } else if (!hasSamplerPressed) {
@@ -683,22 +698,26 @@ public class Editor extends JFrame {
                 for (String[] sp : defaultSamplerPressed) {
                     bw.write(sp[0] + ": " + sp[1]);
                     bw.newLine();
-                    ColorPanel item = new ColorPanel(sp[0], sp[1]);
-                    item.setComment("");
-                    listModel.addElement(item);
+                    if (seenKeys.add(sp[0])) {
+                        ColorPanel item = new ColorPanel(sp[0], sp[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
                 }
             } catch (Exception ignored) {}
         }
 
-        // If default.bte contained defunct keys or outdated color values, sanitize default.bte on disk
+        // If default.bte contained defunct keys, duplicates, or outdated color values, sanitize default.bte on disk
         if (needsSanitization) {
             try (PrintWriter writer = new PrintWriter(themeFile)) {
                 writer.println("// Default color values for Bitwig Studio " + (Main.bitwigVersion != null ? Main.bitwigVersion : ""));
                 writer.println("// This file is auto-generated, please DO NOT edit.");
                 writer.println("Gradient: " + (!disableGradientCheckBox.isSelected()));
+                Set<String> sanitizedWrittenKeys = new HashSet<>();
                 for (int i = 0; i < listModel.size(); i++) {
                     ColorPanel cp = listModel.getElementAt(i);
                     if (isDefunctColorKey(cp.getKey())) continue;
+                    if (!sanitizedWrittenKeys.add(cp.getKey())) continue;
                     writer.println(cp.getKey() + ": " + cp.getValue() + (!cp.getComment().isEmpty() ? " // " + cp.getComment() : ""));
                 }
                 writer.println("// <end>");
