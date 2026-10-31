@@ -497,6 +497,7 @@ public class Editor extends JFrame {
         boolean hasPianoRoll = false;
         boolean hasEQ = false;
         boolean hasSamplerPiano = false;
+        boolean hasSamplerPressed = false;
         boolean needsSanitization = false;
 
         // Read the theme file line by line, separate lines with ": " to get key and value
@@ -544,6 +545,9 @@ public class Editor extends JFrame {
                     }
                     if (key.startsWith("Sampler")) {
                         hasSamplerPiano = true;
+                        if (key.contains("(Pressed)")) {
+                            hasSamplerPressed = true;
+                        }
                     }
                     String value = parts[1].split("//")[0].trim();
                     if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
@@ -650,8 +654,10 @@ public class Editor extends JFrame {
             String[][] defaultSamplerPiano = new String[][] {
                 {"Sampler White Key (Active)", "#b3b3b3"},
                 {"Sampler White Key (Inactive)", "#808080"},
+                {"Sampler White Key (Pressed)", "#ccffcc"},
                 {"Sampler Black Key (Active)", "#1a1a1a"},
                 {"Sampler Black Key (Inactive)", "#4d4d4d"},
+                {"Sampler Black Key (Pressed)", "#8cb38c"},
                 {"Sampler Octave Text", "#1a1a1a"}
             };
             try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
@@ -660,6 +666,21 @@ public class Editor extends JFrame {
                 bw.write("// Sampler Piano Keyboard Colors");
                 bw.newLine();
                 for (String[] sp : defaultSamplerPiano) {
+                    bw.write(sp[0] + ": " + sp[1]);
+                    bw.newLine();
+                    ColorPanel item = new ColorPanel(sp[0], sp[1]);
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        } else if (!hasSamplerPressed) {
+            String[][] defaultSamplerPressed = new String[][] {
+                {"Sampler White Key (Pressed)", "#ccffcc"},
+                {"Sampler Black Key (Pressed)", "#8cb38c"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                for (String[] sp : defaultSamplerPressed) {
                     bw.write(sp[0] + ": " + sp[1]);
                     bw.newLine();
                     ColorPanel item = new ColorPanel(sp[0], sp[1]);

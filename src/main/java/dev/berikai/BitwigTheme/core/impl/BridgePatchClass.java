@@ -669,6 +669,26 @@ public class BridgePatchClass extends PatchClass {
             il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
         }
 
+        // Add default entries for Sampler Piano Keyboard
+        String[] defaultSamplerPianoColors = new String[] {
+            "Sampler White Key (Active): #b3b3b3",
+            "Sampler White Key (Inactive): #808080",
+            "Sampler White Key (Pressed): #ccffcc",
+            "Sampler Black Key (Active): #1a1a1a",
+            "Sampler Black Key (Inactive): #4d4d4d",
+            "Sampler Black Key (Pressed): #8cb38c",
+            "Sampler Octave Text: #1a1a1a"
+        };
+        for (String spEntry : defaultSamplerPianoColors) {
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new LdcInsnNode(spEntry));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+        }
+
         // Here is the java code:
         //                if ("track".equals(colorName)) {
         //                    writer.write("// <end>");

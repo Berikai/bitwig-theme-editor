@@ -106,6 +106,7 @@ public class SamplerPianoPatchClass extends PatchClass {
         // 1. Patch key painting method
         List<AbstractInsnNode> keyTargets = new ArrayList<>();
         List<String> keyTargetNames = new ArrayList<>();
+        List<String> keyFallbackNames = new ArrayList<>();
 
         for (int i = 0; i < keyMethodNode.instructions.size(); i++) {
             AbstractInsnNode insn = keyMethodNode.instructions.get(i);
@@ -117,15 +118,27 @@ public class SamplerPianoPatchClass extends PatchClass {
                         if (Float.valueOf(0.7f).equals(floatCst)) {
                             keyTargets.add(insn);
                             keyTargetNames.add("Sampler White Key (Active)");
+                            keyFallbackNames.add(null);
                         } else if (Float.valueOf(0.5f).equals(floatCst)) {
                             keyTargets.add(insn);
                             keyTargetNames.add("Sampler White Key (Inactive)");
+                            keyFallbackNames.add(null);
+                        } else if (Float.valueOf(0.8f).equals(floatCst)) {
+                            keyTargets.add(insn);
+                            keyTargetNames.add("Sampler White Key (Pressed)");
+                            keyFallbackNames.add("Sampler White Key (Active)");
                         } else if (Float.valueOf(0.1f).equals(floatCst)) {
                             keyTargets.add(insn);
                             keyTargetNames.add("Sampler Black Key (Active)");
+                            keyFallbackNames.add(null);
                         } else if (Float.valueOf(0.3f).equals(floatCst)) {
                             keyTargets.add(insn);
                             keyTargetNames.add("Sampler Black Key (Inactive)");
+                            keyFallbackNames.add(null);
+                        } else if (Float.valueOf(0.55f).equals(floatCst)) {
+                            keyTargets.add(insn);
+                            keyTargetNames.add("Sampler Black Key (Pressed)");
+                            keyFallbackNames.add("Sampler Black Key (Active)");
                         }
                     }
                 }
@@ -136,11 +149,16 @@ public class SamplerPianoPatchClass extends PatchClass {
             for (int i = 0; i < keyTargets.size(); i++) {
                 AbstractInsnNode targetInsn = keyTargets.get(i);
                 String colorName = keyTargetNames.get(i);
+                String fallbackName = keyFallbackNames.get(i);
                 InsnList hook = new InsnList();
-                writeBytecode(hook, colorClassName, getColorMethod, getColorDesc, colorName);
+                if (fallbackName != null) {
+                    writeBytecodeWithFallback(hook, colorClassName, getColorMethod, getColorDesc, colorName, fallbackName);
+                } else {
+                    writeBytecode(hook, colorClassName, getColorMethod, getColorDesc, colorName);
+                }
                 keyMethodNode.instructions.insert(targetInsn, hook);
             }
-            keyMethodNode.maxStack += 2;
+            keyMethodNode.maxStack += 6;
             patchedAny = true;
         }
 
@@ -193,5 +211,40 @@ public class SamplerPianoPatchClass extends PatchClass {
         il.add(new InsnNode(Opcodes.DUP));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
         il.add(new InsnNode(Opcodes.POP));
+    }
+
+    private void writeBytecodeWithFallback(InsnList il, String colorClassName, String getColorMethod, String getColorDesc, String primaryName, String fallbackName) {
+        LabelNode done = new LabelNode();
+
+        // 1. Assign primary colorName and fetch from theme
+        il.add(new LabelNode());
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new LdcInsnNode(primaryName));
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
+        il.add(new InsnNode(Opcodes.POP));
+
+        // 2. Check if primaryName was customized in theme.bte
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+        il.add(new JumpInsnNode(Opcodes.IFNE, done));
+
+        // 3. If primary was not customized, fall back to fallbackName (e.g. Sampler White Key (Active))
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new LdcInsnNode(fallbackName));
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+
+        // Reset lastColorFetch so getColorMethod will re-read theme for fallbackName without hitting the 3000ms throttle
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new InsnNode(Opcodes.LCONST_0));
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "lastColorFetch", "J"));
+
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
+        il.add(new InsnNode(Opcodes.POP));
+
+        il.add(done);
     }
 }
