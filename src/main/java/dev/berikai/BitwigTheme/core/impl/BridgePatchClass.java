@@ -900,243 +900,101 @@ public class BridgePatchClass extends PatchClass {
             return;
         }
 
-        String getBaseColorMethod = PatchClass.mappings.get("ColorBridgeClass.getBaseColor");
         String getRamonaNameMethod = PatchClass.mappings.get("ColorBridgeClass.getRamonaName");
+        if (getRamonaNameMethod == null) {
+            return;
+        }
 
         // In Bitwig Studio, elements like "Knob Body" use Mode 2 ("Same as background")
-        // In this mode, Bitwig ignores the base color and calculates relative brightness from the parent container's background color
-        // This causes knobs on different devices (like Polysynth vs Phase-4) to look completely different even when given the same hex (#32)
-        // Furthermore, unnamed styles (like knob bodies) are deserialized without going through addColorToUI
-        // Here, we resolve the base color and Ramona metadata if targetColor is unset,
-        // and check if the user explicitly customized this color in theme.bte (targetColor.isCustomized == true)
-        // If they did, we return targetColor directly, allowing custom colors to work cleanly across all UI elements and devices!
-        // If they didn't customize it, we fall back to Bitwig's original relative calculation
-        //
-        // Here is the java code:
-        //    if (this.targetColor == null) {
-        //        this.targetColor = this.getBaseColor();
-        //    }
-        //    if (this.targetColor != null) {
-        //        if (this.targetColor.colorName == null || this.targetColor.colorName.isEmpty()) {
-        //            String ramonaName = this.getRamonaName();
-        //            if (ramonaName != null) {
-        //                this.targetColor.colorName = ramonaName;
-        //            }
-        //        }
-        //        if ("Same as background".equals(this.targetColor.colorName)
-        //                || "Transparent".equals(this.targetColor.colorName)
-        //                || "Image Source".equals(this.targetColor.colorName)
-        //                || "Inherited".equals(this.targetColor.colorName)) {
-        //            // proceed with stock resolution
-        //        } else {
-        //            this.targetColor.getColorInteger(); // trigger theme reload/fetch
-        //            if (this.targetColor.isCustomized && this.targetColor.alpha != 0) {
-        //                return this.targetColor;
-        //            }
-        //        }
-        //    }
-        //
-        // And, here is the corresponding bytecode:
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    ifnonnull hasTargetColorLabel
-        //    aload_0
-        //    aload_0
-        //    invokevirtual ColorBridgeClass.getBaseColorMethod ()LColorClass;
-        //    putfield ColorBridgeClass.targetColor LColorClass;
-        //  hasTargetColorLabel:
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    ifnull proceedLabel
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.colorName Ljava/lang/String;
-        //    ifnull fetchRamonaLabel
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.colorName Ljava/lang/String;
-        //    invokevirtual java/lang/String.isEmpty ()Z
-        //    ifeq hasNameLabel
-        //  fetchRamonaLabel:
-        //    aload_0
-        //    invokevirtual ColorBridgeClass.getRamonaNameMethod ()Ljava/lang/String;
-        //    dup
-        //    ifnull skipStoreRamonaLabel
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    swap
-        //    putfield ColorClass.colorName Ljava/lang/String;
-        //    goto hasNameLabel
-        //  skipStoreRamonaLabel:
-        //    pop
-        //  hasNameLabel:
-        //    ldc "Same as background"
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.colorName Ljava/lang/String;
-        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
-        //    ifne proceedLabel
-        //    ldc "Transparent"
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.colorName Ljava/lang/String;
-        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
-        //    ifne proceedLabel
-        //    ldc "Image Source"
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.colorName Ljava/lang/String;
-        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
-        //    ifne proceedLabel
-        //    ldc "Inherited"
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.colorName Ljava/lang/String;
-        //    invokevirtual java/lang/String.equals (Ljava/lang/Object;)Z
-        //    ifne proceedLabel
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    invokevirtual ColorClass.getColorMethod ()getColorDesc;
-        //    pop
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    getfield ColorClass.isCustomized Z
-        //    ifeq notCustomizedLabel
-        //    aload_0
-        //    getfield ColorBridgeClass.targetColor LColorClass;
-        //    areturn
-        //  notCustomizedLabel:
-        //  proceedLabel:
+        // or Mode 3 (relative to parent background) with static transparent singleton QFL.eUA.
+        // In these modes, Bitwig calculates relative brightness from the parent container's background color,
+        // leaving most device knobs (Shape, Drv, Out, Pitch, Glide, FEG, AEG, Mod, Dynamics knobs, etc.) stock grey.
+        // Furthermore, unnamed styles (like knob bodies) are deserialized without going through addColorToUI.
+        // Here, we query the Ramona metadata directly from this (getRamonaNameMethod).
+        // If the user explicitly customized this color in theme.bte (targetColor.isCustomized == true),
+        // we allocate an isolated ColorClass, fetch the custom color, and return targetColor directly!
+        // This ensures custom colors work cleanly across all UI elements and devices without mutating QFL.eUA!
+        // If they didn't customize it, we fall back to Bitwig's original relative calculation.
 
         InsnList hook = new InsnList();
-        LabelNode hasTargetColorLabel = new LabelNode();
         LabelNode proceedLabel = new LabelNode();
-        LabelNode fetchRamonaLabel = new LabelNode();
-        LabelNode skipStoreRamonaLabel = new LabelNode();
-        LabelNode hasNameLabel = new LabelNode();
+        LabelNode checkTargetLabel = new LabelNode();
         LabelNode notCustomizedLabel = new LabelNode();
 
-        // 1. Populate this.targetColor from this.getBaseColor() if targetColor is null
-        if (getBaseColorMethod != null) {
-            hook.add(new LabelNode());
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(new JumpInsnNode(Opcodes.IFNONNULL, hasTargetColorLabel));
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getBaseColorMethod, "()L" + colorClassName + ";", false));
-            hook.add(new FieldInsnNode(Opcodes.PUTFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(hasTargetColorLabel);
-        }
+        int nameSlot = resolveMethodNode.maxLocals++;
 
-        // 2. Load this.targetColor and check if null
-        hook.add(new LabelNode());
+        // 1. String ramonaName = this.getRamonaName();
         hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getRamonaNameMethod, "()Ljava/lang/String;", false));
+        hook.add(new VarInsnNode(Opcodes.ASTORE, nameSlot));
+
+        // 2. if (ramonaName == null) goto proceedLabel;
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
         hook.add(new JumpInsnNode(Opcodes.IFNULL, proceedLabel));
 
-        // 3. Populate colorName from Ramona metadata if null or empty
-        if (getRamonaNameMethod != null) {
-            hook.add(new LabelNode());
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-            hook.add(new JumpInsnNode(Opcodes.IFNULL, fetchRamonaLabel));
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "isEmpty", "()Z", false));
-            hook.add(new JumpInsnNode(Opcodes.IFEQ, hasNameLabel));
-
-            hook.add(fetchRamonaLabel);
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getRamonaNameMethod, "()Ljava/lang/String;", false));
-            hook.add(new InsnNode(Opcodes.DUP));
-            hook.add(new JumpInsnNode(Opcodes.IFNULL, skipStoreRamonaLabel));
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(new InsnNode(Opcodes.SWAP));
-            hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-            hook.add(new JumpInsnNode(Opcodes.GOTO, hasNameLabel));
-
-            hook.add(skipStoreRamonaLabel);
-            hook.add(new InsnNode(Opcodes.POP));
-            hook.add(hasNameLabel);
-        }
-
-        // 3b. Handle "Same as background" (Issue #32):
-        // Polysynth and mixer knobs use "Same as background" style. If user customized "Knob Body",
-        // we check if "Knob Body" is defined in theme.bte and override the knob with that color!
-        // If "Knob Body" is not customized, restore "Same as background" and proceed with stock dynamic calculation.
+        // 3. if ("Same as background".equals(ramonaName)) ramonaName = "Knob Body";
         LabelNode notSameAsBg = new LabelNode();
-        LabelNode knobNotCustomized = new LabelNode();
-
-        hook.add(new LabelNode());
         hook.add(new LdcInsnNode("Same as background"));
-        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
         hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
         hook.add(new JumpInsnNode(Opcodes.IFEQ, notSameAsBg));
-
-        // It is "Same as background": check if "Knob Body" is customized
-        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
         hook.add(new LdcInsnNode("Knob Body"));
-        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-
-        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
-        hook.add(new InsnNode(Opcodes.POP));
-
-        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
-        hook.add(new JumpInsnNode(Opcodes.IFEQ, knobNotCustomized));
-
-        // "Knob Body" IS customized: return targetColor
-        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-        hook.add(new InsnNode(Opcodes.ARETURN));
-
-        // Not customized as "Knob Body": restore "Same as background" and proceed with stock calculation
-        hook.add(knobNotCustomized);
-        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-        hook.add(new LdcInsnNode("Same as background"));
-        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-        hook.add(new JumpInsnNode(Opcodes.GOTO, proceedLabel));
-
+        hook.add(new VarInsnNode(Opcodes.ASTORE, nameSlot));
         hook.add(notSameAsBg);
 
-        // 3c. Ignore remaining pseudo-styles / sentinels: "Transparent", "Image Source", "Inherited"
+        // 4. Filter pseudo-styles / sentinels: "Transparent", "Image Source", "Inherited"
         String[] sentinels = new String[]{"Transparent", "Image Source", "Inherited"};
         for (String sentinel : sentinels) {
-            hook.add(new LabelNode());
             hook.add(new LdcInsnNode(sentinel));
-            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
             hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
             hook.add(new JumpInsnNode(Opcodes.IFNE, proceedLabel));
         }
 
-        // 4. Fetch color to trigger custom theme reload if needed
-        hook.add(new LabelNode());
+        // 5. Check if this.targetColor == null || !ramonaName.equals(this.targetColor.colorName)
+        LabelNode initColor = new LabelNode();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new JumpInsnNode(Opcodes.IFNULL, initColor));
+
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+        hook.add(new JumpInsnNode(Opcodes.IFNE, checkTargetLabel));
+
+        // Initialize isolated targetColor instance: this.targetColor = new ColorClass(0.0f, 0.0f, 0.0f, 0.0f);
+        hook.add(initColor);
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new TypeInsnNode(Opcodes.NEW, colorClassName));
+        hook.add(new InsnNode(Opcodes.DUP));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFFF)V", false));
+        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
+        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+
+        // 6. Trigger color fetch via getColorMethod()
+        hook.add(checkTargetLabel);
         hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
         hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
         hook.add(new InsnNode(Opcodes.POP));
 
-        // 5. Check targetColor.isCustomized
-        hook.add(new LabelNode());
+        // 7. Check if this.targetColor.isCustomized == true
         hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
         hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
 
-        // 6. Return this.targetColor directly if customized (isCustomized is only true for non-transparent colors)
+        // Return this.targetColor directly if customized
         hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
         hook.add(new InsnNode(Opcodes.ARETURN));
