@@ -12,9 +12,11 @@ import java.util.List;
 public class SamplerPianoPatchClass extends PatchClass {
     // Note: In Bitwig Studio, the Sampler device has its own horizontal 128-key keyboard widget.
     // Unlike the Note Editor piano roll (which uses vertical keys), the Sampler keyboard instantiates
-    // hardcoded Color instances for active/inactive white/black keys and octave text.
-    // Across Bitwig 4.3.10 through 6.1.5, this class is uniquely fingerprinted by IEEE-754 float
-    // constants 0.55f (key geometry width ratio) and 0.8f (black key height ratio).
+    // Color instances for active/inactive white/black keys, pressed keys, and octave text inside
+    // the per-key rendering loop (called 128 times per frame).
+    // To prevent opening theme.bte 30,000+ times per second (which exhausts OS file descriptors and
+    // causes java.io.FileNotFoundException: Too many open files), we inject a static color cache
+    // refreshed at most once every 3000ms.
 
     protected MethodNode keyMethodNode;
     protected MethodNode octaveMethodNode;
@@ -101,12 +103,26 @@ public class SamplerPianoPatchClass extends PatchClass {
             return;
         }
 
+        String colorDesc = "L" + colorClassName + ";";
+
+        // Add static cache fields to Sampler class
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_wActive", colorDesc, null, null));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_wInactive", colorDesc, null, null));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_wPressed", colorDesc, null, null));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_bActive", colorDesc, null, null));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_bInactive", colorDesc, null, null));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_bPressed", colorDesc, null, null));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_octText", colorDesc, null, null));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_lastFetch", "J", null, null));
+
+        // Create the static cache updater method
+        createUpdateColorsMethod(colorClassName, getColorMethod, getColorDesc);
+
         boolean patchedAny = false;
 
         // 1. Patch key painting method
         List<AbstractInsnNode> keyTargets = new ArrayList<>();
-        List<String> keyTargetNames = new ArrayList<>();
-        List<String> keyFallbackNames = new ArrayList<>();
+        List<String> keyFieldNames = new ArrayList<>();
 
         for (int i = 0; i < keyMethodNode.instructions.size(); i++) {
             AbstractInsnNode insn = keyMethodNode.instructions.get(i);
@@ -117,28 +133,22 @@ public class SamplerPianoPatchClass extends PatchClass {
                     if (floatCst != null) {
                         if (Float.valueOf(0.7f).equals(floatCst)) {
                             keyTargets.add(insn);
-                            keyTargetNames.add("Sampler White Key (Active)");
-                            keyFallbackNames.add(null);
+                            keyFieldNames.add("bte_wActive");
                         } else if (Float.valueOf(0.5f).equals(floatCst)) {
                             keyTargets.add(insn);
-                            keyTargetNames.add("Sampler White Key (Inactive)");
-                            keyFallbackNames.add(null);
+                            keyFieldNames.add("bte_wInactive");
                         } else if (Float.valueOf(0.8f).equals(floatCst)) {
                             keyTargets.add(insn);
-                            keyTargetNames.add("Sampler White Key (Pressed)");
-                            keyFallbackNames.add("Sampler White Key (Active)");
+                            keyFieldNames.add("bte_wPressed");
                         } else if (Float.valueOf(0.1f).equals(floatCst)) {
                             keyTargets.add(insn);
-                            keyTargetNames.add("Sampler Black Key (Active)");
-                            keyFallbackNames.add(null);
+                            keyFieldNames.add("bte_bActive");
                         } else if (Float.valueOf(0.3f).equals(floatCst)) {
                             keyTargets.add(insn);
-                            keyTargetNames.add("Sampler Black Key (Inactive)");
-                            keyFallbackNames.add(null);
+                            keyFieldNames.add("bte_bInactive");
                         } else if (Float.valueOf(0.55f).equals(floatCst)) {
                             keyTargets.add(insn);
-                            keyTargetNames.add("Sampler Black Key (Pressed)");
-                            keyFallbackNames.add("Sampler Black Key (Active)");
+                            keyFieldNames.add("bte_bPressed");
                         }
                     }
                 }
@@ -146,19 +156,21 @@ public class SamplerPianoPatchClass extends PatchClass {
         }
 
         if (!keyTargets.isEmpty()) {
+            // Call bte_updateColors at the start of key painting method
+            keyMethodNode.instructions.insertBefore(
+                keyMethodNode.instructions.getFirst(),
+                new MethodInsnNode(Opcodes.INVOKESTATIC, classNode.name, "bte_updateColors", "()V", false)
+            );
+
+            // Replace newly instantiated Color with cached static Color
             for (int i = 0; i < keyTargets.size(); i++) {
                 AbstractInsnNode targetInsn = keyTargets.get(i);
-                String colorName = keyTargetNames.get(i);
-                String fallbackName = keyFallbackNames.get(i);
+                String fieldName = keyFieldNames.get(i);
                 InsnList hook = new InsnList();
-                if (fallbackName != null) {
-                    writeBytecodeWithFallback(hook, colorClassName, getColorMethod, getColorDesc, colorName, fallbackName);
-                } else {
-                    writeBytecode(hook, colorClassName, getColorMethod, getColorDesc, colorName);
-                }
+                hook.add(new InsnNode(Opcodes.POP));
+                hook.add(new FieldInsnNode(Opcodes.GETSTATIC, classNode.name, fieldName, colorDesc));
                 keyMethodNode.instructions.insert(targetInsn, hook);
             }
-            keyMethodNode.maxStack += 6;
             patchedAny = true;
         }
 
@@ -171,10 +183,14 @@ public class SamplerPianoPatchClass extends PatchClass {
                     if (minsn.owner.equals(colorClassName) && minsn.name.equals("<init>") && minsn.desc.equals("(FFF)V")) {
                         Float floatCst = findPrecedingFloatConstant(octaveMethodNode, i);
                         if (floatCst != null && Float.valueOf(0.1f).equals(floatCst)) {
+                            octaveMethodNode.instructions.insertBefore(
+                                octaveMethodNode.instructions.getFirst(),
+                                new MethodInsnNode(Opcodes.INVOKESTATIC, classNode.name, "bte_updateColors", "()V", false)
+                            );
                             InsnList hook = new InsnList();
-                            writeBytecode(hook, colorClassName, getColorMethod, getColorDesc, "Sampler Octave Text");
+                            hook.add(new InsnNode(Opcodes.POP));
+                            hook.add(new FieldInsnNode(Opcodes.GETSTATIC, classNode.name, "bte_octText", colorDesc));
                             octaveMethodNode.instructions.insert(insn, hook);
-                            octaveMethodNode.maxStack += 2;
                             patchedAny = true;
                             break;
                         }
@@ -201,50 +217,94 @@ public class SamplerPianoPatchClass extends PatchClass {
         return null;
     }
 
-    private void writeBytecode(InsnList il, String colorClassName, String getColorMethod, String getColorDesc, String colorName) {
-        il.add(new LabelNode());
-        il.add(new InsnNode(Opcodes.DUP)); // Duplicate newly constructed Color instance on stack
-        il.add(new LdcInsnNode(colorName));
-        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+    private void createUpdateColorsMethod(String colorClassName, String getColorMethod, String getColorDesc) {
+        MethodNode updateMethod = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "bte_updateColors", "()V", null, null);
+        InsnList il = updateMethod.instructions;
+        LabelNode returnLabel = new LabelNode();
+        LabelNode fetchLabel = new LabelNode();
 
-        il.add(new LabelNode());
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
-        il.add(new InsnNode(Opcodes.POP));
+        // long now = System.currentTimeMillis();
+        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J", false));
+        il.add(new VarInsnNode(Opcodes.LSTORE, 0)); // local 0 & 1: now
+
+        // if (bte_lastFetch != 0L && (now - bte_lastFetch) <= 3000L) return;
+        il.add(new FieldInsnNode(Opcodes.GETSTATIC, classNode.name, "bte_lastFetch", "J"));
+        il.add(new InsnNode(Opcodes.LCONST_0));
+        il.add(new InsnNode(Opcodes.LCMP));
+        il.add(new JumpInsnNode(Opcodes.IFEQ, fetchLabel));
+
+        il.add(new VarInsnNode(Opcodes.LLOAD, 0));
+        il.add(new FieldInsnNode(Opcodes.GETSTATIC, classNode.name, "bte_lastFetch", "J"));
+        il.add(new InsnNode(Opcodes.LSUB));
+        il.add(new LdcInsnNode(3000L));
+        il.add(new InsnNode(Opcodes.LCMP));
+        il.add(new JumpInsnNode(Opcodes.IFLE, returnLabel));
+
+        il.add(fetchLabel);
+        // bte_lastFetch = now;
+        il.add(new VarInsnNode(Opcodes.LLOAD, 0));
+        il.add(new FieldInsnNode(Opcodes.PUTSTATIC, classNode.name, "bte_lastFetch", "J"));
+
+        // Instantiate and fetch the 7 cached colors
+        createColorAndFetch(il, colorClassName, getColorMethod, getColorDesc, 0.7f, 0.7f, 0.7f, "Sampler White Key (Active)", null, "bte_wActive");
+        createColorAndFetch(il, colorClassName, getColorMethod, getColorDesc, 0.5f, 0.5f, 0.5f, "Sampler White Key (Inactive)", null, "bte_wInactive");
+        createColorAndFetch(il, colorClassName, getColorMethod, getColorDesc, 0.8f, 1.0f, 0.8f, "Sampler White Key (Pressed)", "Sampler White Key (Active)", "bte_wPressed");
+        createColorAndFetch(il, colorClassName, getColorMethod, getColorDesc, 0.1f, 0.1f, 0.1f, "Sampler Black Key (Active)", null, "bte_bActive");
+        createColorAndFetch(il, colorClassName, getColorMethod, getColorDesc, 0.3f, 0.3f, 0.3f, "Sampler Black Key (Inactive)", null, "bte_bInactive");
+        createColorAndFetch(il, colorClassName, getColorMethod, getColorDesc, 0.55f, 0.7f, 0.55f, "Sampler Black Key (Pressed)", "Sampler Black Key (Active)", "bte_bPressed");
+        createColorAndFetch(il, colorClassName, getColorMethod, getColorDesc, 0.1f, 0.1f, 0.1f, "Sampler Octave Text", null, "bte_octText");
+
+        il.add(returnLabel);
+        il.add(new InsnNode(Opcodes.RETURN));
+        updateMethod.maxStack = 6;
+        updateMethod.maxLocals = 2;
+        classNode.methods.add(updateMethod);
     }
 
-    private void writeBytecodeWithFallback(InsnList il, String colorClassName, String getColorMethod, String getColorDesc, String primaryName, String fallbackName) {
-        LabelNode done = new LabelNode();
+    private void createColorAndFetch(InsnList il, String colorClassName, String getColorMethod, String getColorDesc,
+                                     float r, float g, float b, String primaryName, String fallbackName, String staticFieldName) {
+        // new Color(r, g, b)
+        il.add(new TypeInsnNode(Opcodes.NEW, colorClassName));
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new LdcInsnNode(r));
+        il.add(new LdcInsnNode(g));
+        il.add(new LdcInsnNode(b));
+        il.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFF)V", false));
 
-        // 1. Assign primary colorName and fetch from theme
-        il.add(new LabelNode());
+        // Assign primary colorName
         il.add(new InsnNode(Opcodes.DUP));
         il.add(new LdcInsnNode(primaryName));
         il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
 
+        // Invoke getColorMethod
         il.add(new InsnNode(Opcodes.DUP));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
         il.add(new InsnNode(Opcodes.POP));
 
-        // 2. Check if primaryName was customized in theme.bte
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
-        il.add(new JumpInsnNode(Opcodes.IFNE, done));
+        if (fallbackName != null) {
+            LabelNode done = new LabelNode();
+            // Check isCustomized
+            il.add(new InsnNode(Opcodes.DUP));
+            il.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+            il.add(new JumpInsnNode(Opcodes.IFNE, done));
 
-        // 3. If primary was not customized, fall back to fallbackName (e.g. Sampler White Key (Active))
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new LdcInsnNode(fallbackName));
-        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+            // If primary was not customized, assign fallbackName and reset lastColorFetch to 0L so it re-reads
+            il.add(new InsnNode(Opcodes.DUP));
+            il.add(new LdcInsnNode(fallbackName));
+            il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
 
-        // Reset lastColorFetch so getColorMethod will re-read theme for fallbackName without hitting the 3000ms throttle
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new InsnNode(Opcodes.LCONST_0));
-        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "lastColorFetch", "J"));
+            il.add(new InsnNode(Opcodes.DUP));
+            il.add(new InsnNode(Opcodes.LCONST_0));
+            il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "lastColorFetch", "J"));
 
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
-        il.add(new InsnNode(Opcodes.POP));
+            il.add(new InsnNode(Opcodes.DUP));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
+            il.add(new InsnNode(Opcodes.POP));
 
-        il.add(done);
+            il.add(done);
+        }
+
+        // Store into static field
+        il.add(new FieldInsnNode(Opcodes.PUTSTATIC, classNode.name, staticFieldName, "L" + colorClassName + ";"));
     }
 }
