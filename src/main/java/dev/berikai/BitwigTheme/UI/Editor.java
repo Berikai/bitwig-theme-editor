@@ -921,6 +921,8 @@ public class Editor extends JFrame {
                 compatGreyKey = "Grey 1";
             } else if ("Light Timeline Background".equals(rawKey) && !explicitKeys.contains("Grey 2")) {
                 compatGreyKey = "Grey 2";
+            } else if ("Panel body".equals(rawKey) && !explicitKeys.contains("Grey 4")) {
+                compatGreyKey = "Grey 4";
             }
         }
 
