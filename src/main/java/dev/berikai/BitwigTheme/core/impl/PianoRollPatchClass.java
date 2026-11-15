@@ -33,9 +33,10 @@ public class PianoRollPatchClass extends PatchClass {
         findMethodNode();
     }
 
-    // Find the Piano Roll keys widget class (contains 0.7f and 0.1f in timeline package)
+    // Find the Piano Roll keys widget class (contains 0.7f, 0.1f, and Color.<init>(FFF)V in timeline package)
     private void findClassNode(HashMap<String, ClassNode> classNodes) {
         String prefix = "com/bitwig/flt/widget/core/timeline/";
+        String colorClassName = PatchClass.mappings.get("ColorClass");
 
         outer: for (ClassNode cn : classNodes.values()) {
             // Must be a direct class in timeline package (exclude subpackages like interaction/renderer and inner classes)
@@ -44,19 +45,7 @@ public class PianoRollPatchClass extends PatchClass {
             }
 
             for (MethodNode mn : cn.methods) {
-                boolean has07 = false;
-                boolean has01 = false;
-
-                for (int i = 0; i < mn.instructions.size(); i++) {
-                    AbstractInsnNode insn = mn.instructions.get(i);
-                    if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
-                        Object cst = ((LdcInsnNode) insn).cst;
-                        if (Float.valueOf(0.7f).equals(cst)) has07 = true;
-                        if (Float.valueOf(0.1f).equals(cst)) has01 = true;
-                    }
-                }
-
-                if (has07 && has01) {
+                if (matchesPianoRollKeysMethod(mn, colorClassName)) {
                     this.classNode = cn;
                     PatchClass.mappings.put("PianoRollKeysClass", cn.name);
                     break outer;
@@ -65,25 +54,36 @@ public class PianoRollPatchClass extends PatchClass {
         }
     }
 
+    private boolean matchesPianoRollKeysMethod(MethodNode mn, String colorClassName) {
+        boolean has07 = false;
+        boolean has01 = false;
+        boolean hasColorInit = (colorClassName == null);
+
+        for (int i = 0; i < mn.instructions.size(); i++) {
+            AbstractInsnNode insn = mn.instructions.get(i);
+            if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
+                Object cst = ((LdcInsnNode) insn).cst;
+                if (Float.valueOf(0.7f).equals(cst)) has07 = true;
+                else if (Float.valueOf(0.1f).equals(cst)) has01 = true;
+            } else if (!hasColorInit && insn.getOpcode() == Opcodes.INVOKESPECIAL && insn instanceof MethodInsnNode) {
+                MethodInsnNode minsn = (MethodInsnNode) insn;
+                if (minsn.owner.equals(colorClassName) && minsn.name.equals("<init>") && minsn.desc.equals("(FFF)V")) {
+                    hasColorInit = true;
+                }
+            }
+        }
+
+        return has07 && has01 && hasColorInit;
+    }
+
     // Let's find our target method that paints the piano roll keys
     @Override
     protected void findMethodNode() {
         if (classNode == null) return;
+        String colorClassName = PatchClass.mappings.get("ColorClass");
 
         for (MethodNode mn : classNode.methods) {
-            boolean has07 = false;
-            boolean has01 = false;
-
-            for (int i = 0; i < mn.instructions.size(); i++) {
-                AbstractInsnNode insn = mn.instructions.get(i);
-                if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
-                    Object cst = ((LdcInsnNode) insn).cst;
-                    if (Float.valueOf(0.7f).equals(cst)) has07 = true;
-                    if (Float.valueOf(0.1f).equals(cst)) has01 = true;
-                }
-            }
-
-            if (has07 && has01) {
+            if (matchesPianoRollKeysMethod(mn, colorClassName)) {
                 this.methodNode = mn;
                 PatchClass.mappings.put("PianoRollKeysClass.paintMethod", mn.name);
                 break;
@@ -153,36 +153,10 @@ public class PianoRollPatchClass extends PatchClass {
             String colorName = targetNames.get(i);
 
             InsnList hook = new InsnList();
-            writeBytecode(hook, colorClassName, getColorMethod, getColorDesc, colorName);
+            appendColorLookup(hook, colorClassName, getColorMethod, getColorDesc, colorName);
             methodNode.instructions.insert(targetInsn, hook);
         }
 
         methodNode.maxStack += 2;
-    }
-
-    // --------- Bytecode writing section ---------
-
-    // Write bytecode to name the color and trigger immediate theme fetch
-    private void writeBytecode(InsnList il, String colorClassName, String getColorMethod, String getColorDesc, String colorName) {
-        // Here is the java code:
-        //    colorInstance.colorName = colorName;
-        //    colorInstance.getColorInteger(); // or getRed() in pre-5.2 to trigger theme reload
-        //
-        // And, here is the corresponding bytecode:
-        //    aload colorInstance (already on top of stack from Color instantiation)
-        //    dup
-        //    ldc colorName
-        //    putfield ColorClass.colorName Ljava/lang/String;
-        //    dup
-        //    invokevirtual ColorClass.<getColorMethod> ()<getColorDesc>;
-        //    pop
-
-        il.add(new LabelNode());
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new LdcInsnNode(colorName));
-        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
-        il.add(new InsnNode(Opcodes.POP));
     }
 }

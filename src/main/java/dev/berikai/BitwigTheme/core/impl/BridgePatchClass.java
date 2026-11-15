@@ -994,14 +994,51 @@ public class BridgePatchClass extends PatchClass {
         hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
         hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
 
-        // Return this.targetColor directly if customized
-        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
-        hook.add(new InsnNode(Opcodes.ARETURN));
+        // Return a fresh copy of this.targetColor if customized so callers that cache
+        // the returned ColorClass (like Bitwig's dNh/dNg knob bitmap cache) don't hold
+        // a mutable reference whose colorIntegerValue mutates in-place on theme changes.
+        String colorIntField = PatchClass.mappings.get("ColorClass.colorIntegerValue");
+        if (colorIntField != null) {
+            hook.add(new TypeInsnNode(Opcodes.NEW, colorClassName));
+            hook.add(new InsnNode(Opcodes.DUP));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFFF)V", false));
+            hook.add(new InsnNode(Opcodes.DUP));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, colorIntField, "I"));
+            hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, colorIntField, "I"));
+            hook.add(new InsnNode(Opcodes.ARETURN));
+        } else {
+            String redField = PatchClass.mappings.get("ColorClass.redValue");
+            String greenField = PatchClass.mappings.get("ColorClass.greenValue");
+            String blueField = PatchClass.mappings.get("ColorClass.blueValue");
+            String alphaField = PatchClass.mappings.get("ColorClass.alphaValue");
+            hook.add(new TypeInsnNode(Opcodes.NEW, colorClassName));
+            hook.add(new InsnNode(Opcodes.DUP));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, redField, "F"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, greenField, "F"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, blueField, "F"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, alphaField, "F"));
+            hook.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFFF)V", false));
+            hook.add(new InsnNode(Opcodes.ARETURN));
+        }
 
         hook.add(notCustomizedLabel);
         hook.add(proceedLabel);
 
         resolveMethodNode.instructions.insert(hook);
+        resolveMethodNode.maxStack = Math.max(resolveMethodNode.maxStack, 8);
     }
 }

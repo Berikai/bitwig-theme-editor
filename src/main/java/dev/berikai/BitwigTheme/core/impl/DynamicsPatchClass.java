@@ -102,14 +102,7 @@ public class DynamicsPatchClass extends PatchClass {
                                 // Stack has: [..., colorInstance]
                                 // Override color with dedicated "Dynamics Background" key
                                 InsnList hook = new InsnList();
-
-                                hook.add(new InsnNode(Opcodes.DUP));
-                                hook.add(new LdcInsnNode("Dynamics Background"));
-                                hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-                                hook.add(new InsnNode(Opcodes.DUP));
-                                hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
-                                hook.add(new InsnNode(Opcodes.POP));
-
+                                appendColorLookup(hook, colorClassName, getColorMethod, getColorDesc, "Dynamics Background");
                                 mn.instructions.insert(minsn, hook);
                                 patchedCount++;
                                 break; // Only hook the background fill of the widget

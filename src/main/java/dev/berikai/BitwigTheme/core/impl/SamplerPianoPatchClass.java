@@ -61,26 +61,39 @@ public class SamplerPianoPatchClass extends PatchClass {
     protected void findMethodNode() {
         if (classNode == null) return;
 
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+
         for (MethodNode mn : classNode.methods) {
-            if (mn.desc.endsWith("DIDI)V")) {
-                // Key painting method
-                boolean has07 = false;
-                for (int i = 0; i < mn.instructions.size(); i++) {
-                    AbstractInsnNode insn = mn.instructions.get(i);
-                    if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
-                        if (Float.valueOf(0.7f).equals(((LdcInsnNode) insn).cst)) {
-                            has07 = true;
-                            break;
-                        }
+            if ((mn.access & Opcodes.ACC_STATIC) != 0) continue;
+            if (!mn.desc.startsWith("(Lcom/bitwig/graphics/") || !mn.desc.endsWith(")V")) continue;
+
+            boolean has07 = false;
+            boolean has05 = false;
+            boolean has03 = false;
+            boolean has01 = false;
+            boolean hasColorInit = (colorClassName == null);
+
+            for (int i = 0; i < mn.instructions.size(); i++) {
+                AbstractInsnNode insn = mn.instructions.get(i);
+                if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
+                    Object cst = ((LdcInsnNode) insn).cst;
+                    if (Float.valueOf(0.7f).equals(cst)) has07 = true;
+                    else if (Float.valueOf(0.5f).equals(cst)) has05 = true;
+                    else if (Float.valueOf(0.3f).equals(cst)) has03 = true;
+                    else if (Float.valueOf(0.1f).equals(cst)) has01 = true;
+                } else if (!hasColorInit && insn.getOpcode() == Opcodes.INVOKESPECIAL && insn instanceof MethodInsnNode) {
+                    MethodInsnNode minsn = (MethodInsnNode) insn;
+                    if (minsn.owner.equals(colorClassName) && minsn.name.equals("<init>") && minsn.desc.equals("(FFF)V")) {
+                        hasColorInit = true;
                     }
                 }
-                if (has07) {
-                    this.keyMethodNode = mn;
-                    this.methodNode = mn; // primary method node
-                    PatchClass.mappings.put("SamplerPianoClass.paintKeys", mn.name);
-                }
-            } else if (mn.desc.endsWith("DIDII)V")) {
-                // Octave text painting method
+            }
+
+            if (has07 && has05 && has03 && has01 && hasColorInit) {
+                this.keyMethodNode = mn;
+                this.methodNode = mn; // primary method node
+                PatchClass.mappings.put("SamplerPianoClass.paintKeys", mn.name);
+            } else if (!has07 && has01 && hasColorInit) {
                 this.octaveMethodNode = mn;
                 PatchClass.mappings.put("SamplerPianoClass.paintOctaveText", mn.name);
             }
@@ -271,15 +284,8 @@ public class SamplerPianoPatchClass extends PatchClass {
         il.add(new LdcInsnNode(b));
         il.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFF)V", false));
 
-        // Assign primary colorName
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new LdcInsnNode(primaryName));
-        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-
-        // Invoke getColorMethod
-        il.add(new InsnNode(Opcodes.DUP));
-        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
-        il.add(new InsnNode(Opcodes.POP));
+        // Assign primary colorName and invoke getColorMethod
+        appendColorLookup(il, colorClassName, getColorMethod, getColorDesc, primaryName);
 
         if (fallbackName != null) {
             LabelNode done = new LabelNode();

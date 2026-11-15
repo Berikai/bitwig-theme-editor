@@ -13,6 +13,7 @@ build/
 .idea/jsonSchemas.xml
 .idea/material_theme_project_new.xml
 .idea/vcs.xml
+.idea/copilot.data.migration.*.xml
 *.iws
 *.iml
 *.ipr

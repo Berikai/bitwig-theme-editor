@@ -149,14 +149,7 @@ public class TitlebarAccentPatchClass extends PatchClass {
         hook.add(new IntInsnNode(Opcodes.SIPUSH, 186));
         hook.add(new IntInsnNode(Opcodes.SIPUSH, 255));
         hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC, fromRgbOwner, fromRgbName, fromRgbDesc, false));
-        hook.add(new InsnNode(Opcodes.DUP));
-        hook.add(new LdcInsnNode("Accent (hitech)"));
-        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
-        hook.add(new InsnNode(Opcodes.DUP));
-        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
-        if (!getColorDesc.endsWith(")V")) {
-            hook.add(new InsnNode(Opcodes.POP));
-        }
+        appendColorLookup(hook, colorClassName, getColorMethod, getColorDesc, "Accent (hitech)");
 
         this.methodNode.instructions.insertBefore(this.getStaticInsn, hook);
         this.methodNode.instructions.remove(this.getStaticInsn);
