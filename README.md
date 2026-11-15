@@ -44,7 +44,9 @@ You can also manually manage the theme after patching Bitwig Studio:
 - **Step 1:** Run Bitwig Studio
 - **Step 2:** A file named `default.bte` will be created in the Bitwig settings directory
     - **Windows:** `C:\Users\<username>\AppData\Roaming\.bitwig-theme-editor\<version>\`
-    - **Linux & macOS:** `/home/<username>/.bitwig-theme-editor/<version>/`
+    - **Linux:** `~/.config/bitwig-theme-editor/<version>/` (or `$XDG_CONFIG_HOME/bitwig-theme-editor/<version>/`, or `~/.bitwig-theme-editor/<version>/` if already existing)
+    - **macOS:** `/Users/<username>/.bitwig-theme-editor/<version>/`
+    *(Note: You can override the base directory on any OS using the `BTE_CONFIG_DIR` environment variable)*
 - **Step 3:** Create a file named `theme.bte` in the same directory if doesn't exists
 - **Step 4:** Add the lines of the color values you want to change, modify, and save
 - **Step 4:** Click on the "Dashboard Button" or resize the window to render changes
