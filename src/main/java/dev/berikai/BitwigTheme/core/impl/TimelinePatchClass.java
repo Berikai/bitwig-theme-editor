@@ -9,11 +9,13 @@ import java.util.HashMap;
 
 public class TimelinePatchClass extends PatchClass {
     // In Bitwig Studio 6.0+, the Arranger TimelineTheme replaced dedicated timeline keys
-    // ("Top Level Timeline Background", "Dark Timeline Background", "Light Timeline Background",
-    // "Irrelevant Timeline Background", "Timeline Background Pattern", "Timeline Primary Grid",
-    // "Timeline Secondary Grid") with shared "Grey 2" and "Grid Line (Primary)/(Secondary)" keys.
-    // This patcher restores those 7 independent keys in ColorPalette and rewires TimelineTheme
-    // to use them, while gracefully skipping Bitwig 4.x/5.x where they already exist natively.
+    // with shared "Grey 2" and "Grid Line (Primary)/(Secondary)" keys, AND the actual
+    // Arranger lane/grid painters (pTZ.jPB and bqn) bypass TimelineTheme completely:
+    //   - pTZ.jPB(duK) computes the timeline background by lerping Grey 2 / Grey 3 / Grey 4.
+    //   - bqn computes primary/secondary/sub-grid colors from that background color via bqq.
+    // This patcher restores the 7 independent keys in ColorPalette, rewires TimelineTheme,
+    // and hooks pTZ.jPB(duK) + bqn so Dark Timeline Background, Timeline Primary Grid, and
+    // Timeline Secondary Grid directly control the Bitwig 6+ Arranger timeline.
 
     private ClassNode paletteClassNode;
     private MethodNode paletteRegisterMethod;
@@ -24,6 +26,22 @@ public class TimelinePatchClass extends PatchClass {
 
     private ClassNode timelineThemeClassNode;
     private MethodNode timelineInitMethod;
+
+    // pTZ.jPB(duK) -> timeline background helper
+    private ClassNode timelineBgHelperClass;
+    private MethodNode timelineBgHelperMethod;
+    private String widgetClassName;
+    private String lookupColorMethod;
+    private String lookupColorDesc;
+
+    // bqn -> timeline grid line color provider
+    private ClassNode timelineGridClass;
+    private MethodNode timelineGrid5ArgMethod;
+    private MethodNode timelineGrid4ArgMethod;
+    private String getWidgetMethod;
+    private String qflAlphaMethod;
+    private String qflAlphaOwner;
+    private String qflAlphaDesc;
 
     public TimelinePatchClass(HashMap<String, ClassNode> classNodes) {
         super(classNodes, "TimelineClass");
@@ -39,10 +57,25 @@ public class TimelinePatchClass extends PatchClass {
             return;
         }
 
+        findTimelineBgHelper(classNodes);
+        findTimelineGridClass(classNodes);
+
         this.classNode = timelineThemeClassNode;
         JarNode.getModifiedNodes().put(paletteClassNode.name, paletteClassNode);
         JarNode.getModifiedNodes().put(timelineThemeClassNode.name, timelineThemeClassNode);
+        if (timelineBgHelperClass != null && timelineBgHelperMethod != null) {
+            JarNode.getModifiedNodes().put(timelineBgHelperClass.name, timelineBgHelperClass);
+        }
+        if (timelineGridClass != null && timelineGrid5ArgMethod != null) {
+            JarNode.getModifiedNodes().put(timelineGridClass.name, timelineGridClass);
+        }
         System.out.println(" -> Found Bitwig 6+ TimelineTheme (" + timelineThemeClassNode.name + ") and ColorPalette (" + paletteClassNode.name + ").");
+        if (timelineBgHelperClass != null) {
+            System.out.println(" -> Found Timeline background helper (" + timelineBgHelperClass.name + "." + timelineBgHelperMethod.name + ").");
+        }
+        if (timelineGridClass != null) {
+            System.out.println(" -> Found Timeline grid color provider (" + timelineGridClass.name + ").");
+        }
     }
 
     private void findTimelineThemeClass(HashMap<String, ClassNode> classNodes) {
@@ -133,6 +166,125 @@ public class TimelinePatchClass extends PatchClass {
         }
     }
 
+    private void findTimelineBgHelper(HashMap<String, ClassNode> classNodes) {
+        for (ClassNode cn : classNodes.values()) {
+            for (MethodNode mn : cn.methods) {
+                if ((mn.access & Opcodes.ACC_STATIC) == 0) continue;
+                // Signature: (L<widgetBase>;)L<ColorClass>;
+                if (!mn.desc.startsWith("(L") || !mn.desc.contains(";)L")) continue;
+
+                boolean hasGrey2 = false;
+                boolean hasGrey3 = false;
+                boolean hasGrey4 = false;
+                boolean has50f = false;
+                String foundLookupMethod = null;
+                String foundLookupDesc = null;
+                String foundWidgetClass = null;
+
+                for (int i = 0; i < mn.instructions.size(); i++) {
+                    AbstractInsnNode insn = mn.instructions.get(i);
+                    if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode) {
+                        Object cst = ((LdcInsnNode) insn).cst;
+                        if ("Grey 2".equals(cst)) {
+                            hasGrey2 = true;
+                            if (i + 1 < mn.instructions.size() && mn.instructions.get(i + 1) instanceof MethodInsnNode) {
+                                MethodInsnNode m = (MethodInsnNode) mn.instructions.get(i + 1);
+                                if (m.desc.startsWith("(Ljava/lang/String;)L")) {
+                                    foundWidgetClass = m.owner;
+                                    foundLookupMethod = m.name;
+                                    foundLookupDesc = m.desc;
+                                }
+                            }
+                        } else if ("Grey 3".equals(cst)) {
+                            hasGrey3 = true;
+                        } else if ("Grey 4".equals(cst)) {
+                            hasGrey4 = true;
+                        } else if (Float.valueOf(50.0f).equals(cst)) {
+                            has50f = true;
+                        }
+                    }
+                }
+
+                if (hasGrey2 && hasGrey3 && hasGrey4 && has50f && foundLookupMethod != null) {
+                    this.timelineBgHelperClass = cn;
+                    this.timelineBgHelperMethod = mn;
+                    this.widgetClassName = foundWidgetClass;
+                    this.lookupColorMethod = foundLookupMethod;
+                    this.lookupColorDesc = foundLookupDesc;
+                    return;
+                }
+            }
+        }
+    }
+
+    private void findTimelineGridClass(HashMap<String, ClassNode> classNodes) {
+        if (widgetClassName == null || lookupColorDesc == null) return;
+        String colorRetDesc = lookupColorDesc.substring(lookupColorDesc.indexOf(')') + 1); // e.g. LQFL;
+        String desc5 = "(ZZZ" + colorRetDesc + "Z)" + colorRetDesc;
+        String desc4 = "(ZZ" + colorRetDesc + "Z)" + colorRetDesc;
+
+        for (ClassNode cn : classNodes.values()) {
+            MethodNode m5 = null;
+            MethodNode m4 = null;
+            String alphaMethod = null;
+            String alphaOwner = null;
+            String alphaDesc = null;
+
+            for (MethodNode mn : cn.methods) {
+                if ((mn.access & Opcodes.ACC_STATIC) != 0) continue;
+                if (mn.desc.equals(desc5) && mn.instructions.size() < 20) {
+                    m5 = mn;
+                } else if (mn.desc.equals(desc4) && mn.instructions.size() < 20) {
+                    for (int i = 0; i < mn.instructions.size(); i++) {
+                        AbstractInsnNode insn = mn.instructions.get(i);
+                        if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode
+                                && Float.valueOf(0.25f).equals(((LdcInsnNode) insn).cst)) {
+                            m4 = mn;
+                            if (i + 1 < mn.instructions.size() && mn.instructions.get(i + 1) instanceof MethodInsnNode) {
+                                MethodInsnNode am = (MethodInsnNode) mn.instructions.get(i + 1);
+                                alphaMethod = am.name;
+                                alphaOwner = am.owner;
+                                alphaDesc = am.desc;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (m5 != null && m4 != null) {
+                // Find ()L<widgetClassName>; on cn or its superclasses
+                String foundGetWidget = null;
+                String widgetRetDesc = "()L" + widgetClassName + ";";
+                String cur = cn.name;
+                while (cur != null && !cur.equals("java/lang/Object")) {
+                    ClassNode curNode = classNodes.get(cur);
+                    if (curNode == null) break;
+                    for (MethodNode mn : curNode.methods) {
+                        if ((mn.access & Opcodes.ACC_STATIC) == 0 && (mn.access & Opcodes.ACC_PUBLIC) != 0
+                                && mn.desc.equals(widgetRetDesc)) {
+                            foundGetWidget = mn.name;
+                            break;
+                        }
+                    }
+                    if (foundGetWidget != null) break;
+                    cur = curNode.superName;
+                }
+
+                if (foundGetWidget != null) {
+                    this.timelineGridClass = cn;
+                    this.timelineGrid5ArgMethod = m5;
+                    this.timelineGrid4ArgMethod = m4;
+                    this.getWidgetMethod = foundGetWidget;
+                    this.qflAlphaMethod = alphaMethod;
+                    this.qflAlphaOwner = alphaOwner;
+                    this.qflAlphaDesc = alphaDesc;
+                    return;
+                }
+            }
+        }
+    }
+
     @Override
     protected void findMethodNode() {
         // Handled in constructor
@@ -174,7 +326,7 @@ public class TimelinePatchClass extends PatchClass {
             reg.add(new InsnNode(Opcodes.POP));
         }
 
-        // Timeline Primary Grid: rgba(0, 0, 0, 255) (matches Bitwig 6 Grid Line (Primary))
+        // Timeline Primary Grid: rgba(0, 0, 0, 255)
         reg.add(new VarInsnNode(Opcodes.ALOAD, 0));
         reg.add(new LdcInsnNode("Timeline Primary Grid"));
         reg.add(new InsnNode(Opcodes.ICONST_0));
@@ -184,7 +336,7 @@ public class TimelinePatchClass extends PatchClass {
         reg.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, paletteClassNode.name, registerRgbaMethod, rgbaDesc, false));
         reg.add(new InsnNode(Opcodes.POP));
 
-        // Timeline Secondary Grid: rgba(0, 0, 0, 80) (matches Bitwig 6 Grid Line (Secondary))
+        // Timeline Secondary Grid: rgba(0, 0, 0, 80)
         reg.add(new VarInsnNode(Opcodes.ALOAD, 0));
         reg.add(new LdcInsnNode("Timeline Secondary Grid"));
         reg.add(new InsnNode(Opcodes.ICONST_0));
@@ -213,6 +365,94 @@ public class TimelinePatchClass extends PatchClass {
                     ldc.cst = "Timeline Secondary Grid";
                     rewiredCount++;
                 }
+            }
+        }
+
+        // 3. Hook pTZ.jPB(duK) so Dark / Light Timeline Background override Grey 2/3/4 when customized
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+        if (timelineBgHelperMethod != null && colorClassName != null) {
+            InsnList bgHook = new InsnList();
+            LabelNode checkLight = new LabelNode();
+            LabelNode fallthrough = new LabelNode();
+
+            bgHook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            bgHook.add(new LdcInsnNode("Dark Timeline Background"));
+            bgHook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, widgetClassName, lookupColorMethod, lookupColorDesc, false));
+            bgHook.add(new InsnNode(Opcodes.DUP));
+            bgHook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+            bgHook.add(new JumpInsnNode(Opcodes.IFEQ, checkLight));
+            bgHook.add(new InsnNode(Opcodes.ARETURN));
+
+            bgHook.add(checkLight);
+            bgHook.add(new InsnNode(Opcodes.POP));
+            bgHook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            bgHook.add(new LdcInsnNode("Light Timeline Background"));
+            bgHook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, widgetClassName, lookupColorMethod, lookupColorDesc, false));
+            bgHook.add(new InsnNode(Opcodes.DUP));
+            bgHook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+            bgHook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough));
+            bgHook.add(new InsnNode(Opcodes.ARETURN));
+
+            bgHook.add(fallthrough);
+            bgHook.add(new InsnNode(Opcodes.POP));
+
+            timelineBgHelperMethod.instructions.insert(bgHook);
+        }
+
+        // 4. Hook bqn grid color methods so Timeline Primary/Secondary Grid override bqq calculation when customized
+        if (timelineGrid5ArgMethod != null && colorClassName != null) {
+            InsnList g5Hook = new InsnList();
+            LabelNode checkSecondary = new LabelNode();
+            LabelNode fallthrough5 = new LabelNode();
+
+            // Primary grid (iload_3 == 0)
+            g5Hook.add(new VarInsnNode(Opcodes.ILOAD, 3));
+            g5Hook.add(new JumpInsnNode(Opcodes.IFNE, checkSecondary));
+            g5Hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            g5Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, timelineGridClass.name, getWidgetMethod, "()L" + widgetClassName + ";", false));
+            g5Hook.add(new LdcInsnNode("Timeline Primary Grid"));
+            g5Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, widgetClassName, lookupColorMethod, lookupColorDesc, false));
+            g5Hook.add(new InsnNode(Opcodes.DUP));
+            g5Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+            g5Hook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough5));
+            g5Hook.add(new InsnNode(Opcodes.ARETURN));
+
+            // Secondary grid (iload_3 != 0)
+            g5Hook.add(checkSecondary);
+            g5Hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            g5Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, timelineGridClass.name, getWidgetMethod, "()L" + widgetClassName + ";", false));
+            g5Hook.add(new LdcInsnNode("Timeline Secondary Grid"));
+            g5Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, widgetClassName, lookupColorMethod, lookupColorDesc, false));
+            g5Hook.add(new InsnNode(Opcodes.DUP));
+            g5Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+            g5Hook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough5));
+            g5Hook.add(new InsnNode(Opcodes.ARETURN));
+
+            g5Hook.add(fallthrough5);
+            g5Hook.add(new InsnNode(Opcodes.POP));
+
+            timelineGrid5ArgMethod.instructions.insert(g5Hook);
+
+            // 4-arg sub-grid method: use Timeline Secondary Grid (scaled by 0.5f) if customized
+            if (timelineGrid4ArgMethod != null && qflAlphaMethod != null) {
+                InsnList g4Hook = new InsnList();
+                LabelNode fallthrough4 = new LabelNode();
+
+                g4Hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                g4Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, timelineGridClass.name, getWidgetMethod, "()L" + widgetClassName + ";", false));
+                g4Hook.add(new LdcInsnNode("Timeline Secondary Grid"));
+                g4Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, widgetClassName, lookupColorMethod, lookupColorDesc, false));
+                g4Hook.add(new InsnNode(Opcodes.DUP));
+                g4Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+                g4Hook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough4));
+                g4Hook.add(new LdcInsnNode(0.5f));
+                g4Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, qflAlphaOwner, qflAlphaMethod, qflAlphaDesc, false));
+                g4Hook.add(new InsnNode(Opcodes.ARETURN));
+
+                g4Hook.add(fallthrough4);
+                g4Hook.add(new InsnNode(Opcodes.POP));
+
+                timelineGrid4ArgMethod.instructions.insert(g4Hook);
             }
         }
 
