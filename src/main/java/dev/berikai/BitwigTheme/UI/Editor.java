@@ -497,6 +497,7 @@ public class Editor extends JFrame {
         boolean hasSamplerPressed = false;
         boolean hasDynamicsBg = false;
         boolean hasTimelineGrid = false;
+        boolean hasDeactivatedOverlay = false;
         boolean needsSanitization = false;
         Set<String> seenKeys = new HashSet<>();
 
@@ -558,6 +559,9 @@ public class Editor extends JFrame {
                     }
                     if (key.equals("Timeline Primary Grid")) {
                         hasTimelineGrid = true;
+                    }
+                    if (key.equals("Deactivated Overlay")) {
+                        hasDeactivatedOverlay = true;
                     }
                     String value = parts[1].split("//")[0].trim();
                     if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
@@ -721,6 +725,23 @@ public class Editor extends JFrame {
                 bw.newLine();
                 if (seenKeys.add("Dynamics Background")) {
                     ColorPanel item = new ColorPanel("Dynamics Background", "#333333");
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created without Deactivated Overlay, append it now
+        if (!hasDeactivatedOverlay) {
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Deactivated Track & Device Tint");
+                bw.newLine();
+                bw.write("Deactivated Overlay: #26262680");
+                bw.newLine();
+                if (seenKeys.add("Deactivated Overlay")) {
+                    ColorPanel item = new ColorPanel("Deactivated Overlay", "#26262680");
                     item.setComment("");
                     listModel.addElement(item);
                 }
