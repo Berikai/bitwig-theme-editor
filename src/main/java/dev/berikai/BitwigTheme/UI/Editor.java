@@ -46,6 +46,7 @@ public class Editor extends JFrame {
     private JButton redoButton1;
     private JButton undoButton2;
     private JButton redoButton2;
+    private JCheckBox globalThemeCheckBox;
 
     private boolean isDefunctColorKey(String key) {
         if ("Irrelevant Timeline Overlay".equals(key)) return true;
@@ -132,37 +133,15 @@ public class Editor extends JFrame {
         JMenu fileMenu = new JMenu("File");
         JMenuItem importTheme = new JMenuItem("Import file");
         JMenuItem exportTheme = new JMenuItem("Export file");
+        JMenuItem resetToStock = new JMenuItem("Reset to default");
         JMenuItem exit = new JMenuItem("Exit");
         fileMenu.add(importTheme);
         fileMenu.add(exportTheme);
         fileMenu.addSeparator();
+        fileMenu.add(resetToStock);
+        fileMenu.addSeparator();
         fileMenu.add(exit);
         menuBar.add(fileMenu);
-
-        JMenu editorMenu = new JMenu("Editor");
-        JMenuItem resetToStock = new JMenuItem("Reset to default");
-        JMenuItem selectJar = new JMenuItem("Re-patch bitwig.jar");
-        JCheckBoxMenuItem globalTheme = new JCheckBoxMenuItem("Enable global theme file");
-        globalTheme.setState(Main.isGlobalTheme);
-        globalTheme.addActionListener(e -> {
-            boolean isSelected = globalTheme.getState();
-            Main.isGlobalTheme = isSelected;
-            dev.berikai.BitwigTheme.UI.MainUI.updateConfig(bitwig_path);
-
-            loadTheme(Main.getThemeConfigPath());
-
-            int response = JOptionPane.showConfirmDialog(this, "To apply this change for Bitwig Studio, bitwig.jar needs to be re-patched with this setting. Do you want to repatch it now?", "Confirm", JOptionPane.YES_NO_OPTION);
-            if (response == JOptionPane.YES_OPTION) {
-                Main.applyPatch(bitwig_path, Main.jar);
-            }
-        });
-
-        editorMenu.add(resetToStock);
-        editorMenu.addSeparator();
-        editorMenu.add(globalTheme);
-        editorMenu.addSeparator();
-        editorMenu.add(selectJar);
-        menuBar.add(editorMenu);
 
         JMenu helpMenu = new JMenu("Help");
         JMenuItem about = new JMenuItem("About");
@@ -173,6 +152,35 @@ public class Editor extends JFrame {
         helpMenu.addSeparator();
         helpMenu.add(github);
         menuBar.add(helpMenu);
+
+        menuBar.add(Box.createHorizontalGlue());
+
+        String versionText = (Main.bitwigVersion != null && !Main.bitwigVersion.isEmpty()) ? Main.bitwigVersion : "Unknown";
+        JLabel targetVersionLabel = new JLabel("Bitwig " + versionText);
+        Font targetFont = this.$$$getFont$$$(null, -1, 11, targetVersionLabel.getFont());
+        if (targetFont != null) targetVersionLabel.setFont(targetFont);
+        targetVersionLabel.setForeground(new Color(-6908266));
+        targetVersionLabel.setToolTipText(bitwig_path);
+        menuBar.add(targetVersionLabel);
+
+        menuBar.add(Box.createHorizontalStrut(8));
+
+        JButton switchJarButton = new JButton("Switch / Re-patch");
+        if (targetFont != null) switchJarButton.setFont(targetFont);
+        switchJarButton.setFocusable(false);
+        switchJarButton.putClientProperty("JButton.buttonType", "toolBarButton");
+        switchJarButton.setMargin(new Insets(2, 8, 2, 8));
+        switchJarButton.setToolTipText("Select or re-patch bitwig.jar");
+        switchJarButton.addActionListener(e -> {
+            int response = JOptionPane.showConfirmDialog(this, "Unsaved changes will be lost.", "Confirm Select JAR", JOptionPane.YES_NO_OPTION);
+            if (response == JOptionPane.YES_OPTION) {
+                setVisible(false);
+                Welcome.selectJar(this);
+                dispose();
+            }
+        });
+        menuBar.add(switchJarButton);
+        menuBar.add(Box.createHorizontalStrut(6));
 
         about.addActionListener(e -> showAboutDialog());
         themes.addActionListener(e -> openWebpage("https://github.com/Berikai/awesome-bitwig-themes"));
@@ -187,15 +195,6 @@ public class Editor extends JFrame {
                 minimizeThemeOnExportCheckBox.setSelected(false); // Temporarily disable minimize to export all colors, needed to reset to stock values
                 saveThemeColors(Main.getThemeConfigPath());
                 minimizeThemeOnExportCheckBox.setSelected(minimize);
-            }
-        });
-
-        selectJar.addActionListener(e -> {
-            int response = JOptionPane.showConfirmDialog(this, "Unsaved changes will be lost.", "Confirm Select JAR", JOptionPane.YES_NO_OPTION);
-            if (response == JOptionPane.YES_OPTION) {
-                setVisible(false);
-                Welcome.selectJar(this);
-                dispose();
             }
         });
 
@@ -417,6 +416,20 @@ public class Editor extends JFrame {
             boolean isSelected = alwaysOnTopCheckbox.isSelected();
             setAlwaysOnTop(isSelected);
             System.out.println("-> Always on top: " + isSelected);
+        });
+
+        globalThemeCheckBox.setSelected(Main.isGlobalTheme);
+        globalThemeCheckBox.addActionListener(e -> {
+            boolean isSelected = globalThemeCheckBox.isSelected();
+            Main.isGlobalTheme = isSelected;
+            dev.berikai.BitwigTheme.UI.MainUI.updateConfig(bitwig_path);
+
+            loadTheme(Main.getThemeConfigPath());
+
+            int response = JOptionPane.showConfirmDialog(this, "To apply this change for Bitwig Studio, bitwig.jar needs to be re-patched with this setting. Do you want to repatch it now?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if (response == JOptionPane.YES_OPTION) {
+                Main.applyPatch(bitwig_path, Main.jar);
+            }
         });
 
         buyMeACoffeeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -1022,6 +1035,7 @@ public class Editor extends JFrame {
                 panelsToSave = !allItems1.isEmpty() ? allItems1.toArray() : listModel.toArray();
             }
             java.util.Set<String> writtenKeys = new java.util.HashSet<>();
+            java.util.List<ColorPanel> writtenPanels = new java.util.ArrayList<>();
             for (Object _panel : panelsToSave) {
                 if (!(_panel instanceof ColorPanel)) continue;
                 ColorPanel panel = (ColorPanel) _panel;
@@ -1032,8 +1046,11 @@ public class Editor extends JFrame {
 
                 if (writtenKeys.add(key)) {
                     writer.println(key + ": " + val + comment);
+                    writtenPanels.add(panel);
                 }
-                writeCrossVersionAliases(writer, key, val, writtenKeys);
+            }
+            for (ColorPanel panel : writtenPanels) {
+                writeCrossVersionAliases(writer, panel.getKey(), panel.getValue(), writtenKeys);
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Failed to save theme file!", "Error", JOptionPane.ERROR_MESSAGE);
@@ -1043,10 +1060,18 @@ public class Editor extends JFrame {
     private void writeCrossVersionAliases(PrintWriter writer, String key, String val, java.util.Set<String> writtenKeys) {
         String[] aliases = null;
         switch (key) {
+            case "Grid Line (Primary)":
+                aliases = new String[]{"Timeline Header Primary Grid", "Timeline Primary Grid"};
+                break;
             case "Timeline Header Primary Grid":
+            case "Timeline Primary Grid":
                 aliases = new String[]{"Grid Line (Primary)"};
                 break;
+            case "Grid Line (Secondary)":
+                aliases = new String[]{"Timeline Header Secondary Grid", "Timeline Secondary Grid"};
+                break;
             case "Timeline Header Secondary Grid":
+            case "Timeline Secondary Grid":
                 aliases = new String[]{"Grid Line (Secondary)"};
                 break;
             case "Accent (hitech)":
@@ -1060,6 +1085,60 @@ public class Editor extends JFrame {
                 break;
             case "On":
                 aliases = new String[]{"Accent (default)"};
+                break;
+            case "Grey 0":
+                aliases = new String[]{"Hole (dark)"};
+                break;
+            case "Hole (dark)":
+                aliases = new String[]{"Grey 0"};
+                break;
+            case "Grey 1":
+                aliases = new String[]{"Dark Timeline Background"};
+                break;
+            case "Dark Timeline Background":
+                aliases = new String[]{"Grey 1"};
+                break;
+            case "Grey 2":
+                aliases = new String[]{"Light Timeline Background"};
+                break;
+            case "Light Timeline Background":
+                aliases = new String[]{"Grey 2"};
+                break;
+            case "Grey 3":
+                aliases = new String[]{"Hole (medium)"};
+                break;
+            case "Hole (medium)":
+                aliases = new String[]{"Grey 3"};
+                break;
+            case "Grey 5":
+                aliases = new String[]{"Panel body"};
+                break;
+            case "Panel body":
+                aliases = new String[]{"Grey 5"};
+                break;
+            case "Grey 6":
+                aliases = new String[]{"Selected Panel body"};
+                break;
+            case "Selected Panel body":
+                aliases = new String[]{"Grey 6"};
+                break;
+            case "Panel Stroke (focused)":
+                aliases = new String[]{"Active Panel stroke"};
+                break;
+            case "Active Panel stroke":
+                aliases = new String[]{"Panel Stroke (focused)"};
+                break;
+            case "White Selection":
+                aliases = new String[]{"Selection"};
+                break;
+            case "Selection":
+                aliases = new String[]{"White Selection"};
+                break;
+            case "White Selection (standby)":
+                aliases = new String[]{"Standby selection"};
+                break;
+            case "Standby selection":
+                aliases = new String[]{"White Selection (standby)"};
                 break;
             default:
                 break;
@@ -1318,13 +1397,13 @@ public class Editor extends JFrame {
         redoButton2.setToolTipText("Redo");
         toolBar2.add(redoButton2);
         final JPanel panel5 = new JPanel();
-        panel5.setLayout(new GridLayoutManager(10, 2, new Insets(10, 10, 10, 10), -1, -1));
+        panel5.setLayout(new GridLayoutManager(12, 2, new Insets(10, 10, 10, 10), -1, -1));
         tabbedPane1.addTab("Options", panel5);
         disableGradientCheckBox = new JCheckBox();
         disableGradientCheckBox.setText("Disable gradient");
         panel5.add(disableGradientCheckBox, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer3 = new Spacer();
-        panel5.add(spacer3, new GridConstraints(9, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
+        panel5.add(spacer3, new GridConstraints(11, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         alwaysOnTopCheckbox = new JCheckBox();
         alwaysOnTopCheckbox.setSelected(true);
         alwaysOnTopCheckbox.setText("Set always on top");
@@ -1366,6 +1445,15 @@ public class Editor extends JFrame {
         label5.setForeground(new Color(-9737874));
         label5.setText("Make the UI always on top of all windows.");
         panel5.add(label5, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 3, false));
+        globalThemeCheckBox = new JCheckBox();
+        globalThemeCheckBox.setText("Enable global theme file");
+        panel5.add(globalThemeCheckBox, new GridConstraints(9, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JLabel labelGlobalTheme = new JLabel();
+        Font labelGlobalThemeFont = this.$$$getFont$$$(null, -1, 10, labelGlobalTheme.getFont());
+        if (labelGlobalThemeFont != null) labelGlobalTheme.setFont(labelGlobalThemeFont);
+        labelGlobalTheme.setForeground(new Color(-9737874));
+        labelGlobalTheme.setText("Share one theme.bte across all patched Bitwig Studio versions (re-patch required).");
+        panel5.add(labelGlobalTheme, new GridConstraints(10, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 3, false));
         final JPanel panel6 = new JPanel();
         panel6.setLayout(new GridLayoutManager(1, 5, new Insets(5, 0, 5, 0), -1, -1));
         mainPanel.add(panel6, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));

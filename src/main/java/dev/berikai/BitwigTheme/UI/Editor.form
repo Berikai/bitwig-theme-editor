@@ -204,7 +204,7 @@
               </toolbar>
             </children>
           </grid>
-          <grid id="9ea78" layout-manager="GridLayoutManager" row-count="10" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+          <grid id="9ea78" layout-manager="GridLayoutManager" row-count="12" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
             <margin top="10" left="10" bottom="10" right="10"/>
             <constraints>
               <tabbedpane title="Options"/>
@@ -222,7 +222,7 @@
               </component>
               <vspacer id="3bb5">
                 <constraints>
-                  <grid row="9" column="0" row-span="1" col-span="1" vsize-policy="6" hsize-policy="1" anchor="0" fill="2" indent="0" use-parent-layout="false"/>
+                  <grid row="11" column="0" row-span="1" col-span="1" vsize-policy="6" hsize-policy="1" anchor="0" fill="2" indent="0" use-parent-layout="false"/>
                 </constraints>
               </vspacer>
               <component id="92a8" class="javax.swing.JCheckBox" binding="alwaysOnTopCheckbox">
@@ -302,6 +302,24 @@
                   <font size="10"/>
                   <foreground color="-9737874"/>
                   <text value="Make the UI always on top of all windows."/>
+                </properties>
+              </component>
+              <component id="g1t2c" class="javax.swing.JCheckBox" binding="globalThemeCheckBox">
+                <constraints>
+                  <grid row="9" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+                </constraints>
+                <properties>
+                  <text value="Enable global theme file"/>
+                </properties>
+              </component>
+              <component id="g1t2l" class="javax.swing.JLabel">
+                <constraints>
+                  <grid row="10" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="3" use-parent-layout="false"/>
+                </constraints>
+                <properties>
+                  <font size="10"/>
+                  <foreground color="-9737874"/>
+                  <text value="Share one theme.bte across all patched Bitwig Studio versions (re-patch required)."/>
                 </properties>
               </component>
             </children>
