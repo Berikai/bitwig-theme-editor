@@ -15,6 +15,7 @@ import dev.berikai.BitwigTheme.core.impl.EQPatchClass;
 import dev.berikai.BitwigTheme.core.impl.SamplerPianoPatchClass;
 import dev.berikai.BitwigTheme.core.impl.DynamicsPatchClass;
 import dev.berikai.BitwigTheme.core.impl.TimelinePatchClass;
+import dev.berikai.BitwigTheme.core.impl.TitlebarAccentPatchClass;
 import org.objectweb.asm.tree.FieldNode;
 
 import javax.swing.*;
@@ -178,6 +179,7 @@ public class Main {
         PatchClass samplerPianoClass = new SamplerPianoPatchClass(jar.getNodes());
         PatchClass dynamicsClass = new DynamicsPatchClass(jar.getNodes());
         PatchClass timelineClass = new TimelinePatchClass(jar.getNodes());
+        PatchClass titlebarAccentClass = new TitlebarAccentPatchClass(jar.getNodes());
 
         // Check if ColorClass already has the field "colorName"
         // This is to prevent double patching
@@ -270,6 +272,10 @@ public class Main {
 
         if (timelineClass.getClassNode() != null) {
             timelineClass.patch();
+        }
+
+        if (titlebarAccentClass.getClassNode() != null) {
+            titlebarAccentClass.patch();
         }
 
         // Disable integrity check
