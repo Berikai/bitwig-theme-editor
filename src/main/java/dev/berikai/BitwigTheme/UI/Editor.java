@@ -55,11 +55,6 @@ public class Editor extends JFrame {
                 || "Inherited".equals(key)) {
             return true;
         }
-        if (isBitwig6OrNewer) {
-            return "Top Level Timeline Background".equals(key)
-                    || "Dark Timeline Background".equals(key)
-                    || "Light Timeline Background".equals(key);
-        }
         return false;
     }
 
@@ -501,6 +496,7 @@ public class Editor extends JFrame {
         boolean hasSamplerPiano = false;
         boolean hasSamplerPressed = false;
         boolean hasDynamicsBg = false;
+        boolean hasTimelineGrid = false;
         boolean needsSanitization = false;
         Set<String> seenKeys = new HashSet<>();
 
@@ -559,6 +555,9 @@ public class Editor extends JFrame {
                     }
                     if (key.equals("Dynamics Background")) {
                         hasDynamicsBg = true;
+                    }
+                    if (key.equals("Timeline Primary Grid")) {
+                        hasTimelineGrid = true;
                     }
                     String value = parts[1].split("//")[0].trim();
                     if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
@@ -724,6 +723,34 @@ public class Editor extends JFrame {
                     ColorPanel item = new ColorPanel("Dynamics Background", "#333333");
                     item.setComment("");
                     listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created without decoupled Timeline keys (Bitwig 6+), append them now
+        if (!hasTimelineGrid) {
+            String[][] timelineDefaults = new String[][]{
+                {"Top Level Timeline Background", "#262626"},
+                {"Dark Timeline Background", "#262626"},
+                {"Light Timeline Background", "#262626"},
+                {"Irrelevant Timeline Background", "#262626"},
+                {"Timeline Background Pattern", "#262626"},
+                {"Timeline Primary Grid", "#000000"},
+                {"Timeline Secondary Grid", "#00000050"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Decoupled Timeline Colors");
+                bw.newLine();
+                for (String[] entry : timelineDefaults) {
+                    if (seenKeys.add(entry[0])) {
+                        bw.write(entry[0] + ": " + entry[1]);
+                        bw.newLine();
+                        ColorPanel item = new ColorPanel(entry[0], entry[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
                 }
             } catch (Exception ignored) {}
         }
@@ -980,17 +1007,9 @@ public class Editor extends JFrame {
     private void writeCrossVersionAliases(PrintWriter writer, String key, String val, java.util.Set<String> writtenKeys) {
         String[] aliases = null;
         switch (key) {
-            case "Grid Line (Primary)":
-                aliases = new String[]{"Timeline Primary Grid", "Timeline Header Primary Grid"};
-                break;
-            case "Timeline Primary Grid":
             case "Timeline Header Primary Grid":
                 aliases = new String[]{"Grid Line (Primary)"};
                 break;
-            case "Grid Line (Secondary)":
-                aliases = new String[]{"Timeline Secondary Grid", "Timeline Header Secondary Grid"};
-                break;
-            case "Timeline Secondary Grid":
             case "Timeline Header Secondary Grid":
                 aliases = new String[]{"Grid Line (Secondary)"};
                 break;
@@ -1067,18 +1086,12 @@ public class Editor extends JFrame {
                 return "Accent (default)";
             case "Hitech on":
                 return "Accent (hitech)";
-            case "Timeline Primary Grid":
             case "Timeline Header Primary Grid":
                 return "Grid Line (Primary)";
-            case "Timeline Secondary Grid":
             case "Timeline Header Secondary Grid":
                 return "Grid Line (Secondary)";
             case "Hole (dark)":
                 return "Grey 0";
-            case "Dark Timeline Background":
-                return "Grey 1";
-            case "Light Timeline Background":
-                return "Grey 2";
             case "Hole (medium)": // and Hole (light)
             case "Hole (light)":
                 return "Grey 3";
