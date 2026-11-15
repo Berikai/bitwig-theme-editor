@@ -62,7 +62,27 @@ public abstract class PatchClass {
     // All patching operations for the class
     public abstract void patch();
 
+    /**
+     * Appends bytecode that tags the ColorClass instance on top of the stack with
+     * {@code colorName} and invokes {@code getColorMethod}, leaving the ColorClass
+     * instance on top of the stack.
+     */
+    protected static void appendColorLookup(InsnList il, String colorClassName, String getColorMethod, String getColorDesc, String colorName) {
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new LdcInsnNode(colorName));
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
+        if (!getColorDesc.endsWith(")V")) {
+            il.add(new InsnNode(Opcodes.POP));
+        }
+    }
+
     public ClassNode getClassNode() {
         return classNode;
+    }
+
+    public MethodNode getMethodNode() {
+        return methodNode;
     }
 }

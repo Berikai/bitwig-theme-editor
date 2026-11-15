@@ -14,9 +14,13 @@ public class BridgePatchClass extends PatchClass {
     // Because it's method, **which is also what we are looking for**, is being called once for each element from UI element initialization methods to initialize related colors
     // At least that's what I interpret that is happening, it's something like that
 
+    protected MethodNode resolveMethodNode;
+    private final HashMap<String, ClassNode> classNodes;
+
     public BridgePatchClass(HashMap<String, ClassNode> classNodes) {
         // Call super class constructor
         super(classNodes, "ColorBridgeClass");
+        this.classNodes = classNodes;
 
         // Find the class that contains the string "Same as background"
         // ColorBridge class is the only class that has this string, which makes our lives easier
@@ -26,6 +30,21 @@ public class BridgePatchClass extends PatchClass {
         if (classNode == null) {
             System.out.println("ERROR: ColorBridge class not found. Your Bitwig Studio version may not be supported.");
             System.out.println(" -> Known working versions: 4.x, 5.x, 6.x");
+        }
+
+        // Add targetColor field to ColorBridgeClass if not present
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+        if (classNode != null && colorClassName != null) {
+            boolean hasTargetColor = false;
+            for (FieldNode f : classNode.fields) {
+                if (f.name.equals("targetColor")) {
+                    hasTargetColor = true;
+                    break;
+                }
+            }
+            if (!hasTargetColor) {
+                classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC, "targetColor", "L" + colorClassName + ";", null, null));
+            }
         }
 
         // Find the method node that we will be injecting code into
@@ -46,6 +65,51 @@ public class BridgePatchClass extends PatchClass {
                 PatchClass.mappings.put("ColorBridgeClass.addColorToUI", this.methodNode.name);
 
                 break;
+            }
+        }
+
+        // Also find resolveMethodNode: public ColorClass <name>(ColorClass parentBg)
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+        if (colorClassName != null && classNode != null) {
+            String colorDesc = "L" + colorClassName + ";";
+            String resolveDesc = "(" + colorDesc + ")" + colorDesc;
+            for (MethodNode mn : classNode.methods) {
+                if ((mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals(resolveDesc)) {
+                    this.resolveMethodNode = mn;
+                    PatchClass.mappings.put("ColorBridgeClass.resolveColor", mn.name);
+                    break;
+                }
+            }
+
+            // Also find baseColorMethod and ramonaNameMethod from superclasses
+            PatchClass.mappings.remove("ColorBridgeClass.getBaseColor");
+            PatchClass.mappings.remove("ColorBridgeClass.getRamonaName");
+            if (classNodes != null) {
+                String curSuper = classNode.superName;
+                while (curSuper != null && !curSuper.equals("java/lang/Object")) {
+                    ClassNode sup = classNodes.get(curSuper);
+                    if (sup == null) break;
+
+                    if (!PatchClass.mappings.containsKey("ColorBridgeClass.getBaseColor")) {
+                        String baseDesc = "()L" + colorClassName + ";";
+                        for (MethodNode mn : sup.methods) {
+                            if ((mn.access & Opcodes.ACC_STATIC) == 0 && (mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals(baseDesc)) {
+                                PatchClass.mappings.put("ColorBridgeClass.getBaseColor", mn.name);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!PatchClass.mappings.containsKey("ColorBridgeClass.getRamonaName")) {
+                        for (MethodNode mn : sup.methods) {
+                            if ((mn.access & Opcodes.ACC_STATIC) == 0 && (mn.access & Opcodes.ACC_PUBLIC) != 0 && mn.desc.equals("()Ljava/lang/String;") && !mn.name.equals("toString")) {
+                                PatchClass.mappings.put("ColorBridgeClass.getRamonaName", mn.name);
+                                break;
+                            }
+                        }
+                    }
+                    curSuper = sup.superName;
+                }
             }
         }
     }
@@ -136,6 +200,11 @@ public class BridgePatchClass extends PatchClass {
 
         // Insert new instructions before return
         methodNode.instructions.insertBefore(ret, exportIl);
+
+        // Patch resolve method to allow overriding relative/Mode-2 colors (e.g. Knob Body, Issue #32)
+        if (resolveMethodNode != null) {
+            patchResolveMethod();
+        }
     }
 
     // --------- Bytecode writing section ---------
@@ -160,6 +229,31 @@ public class BridgePatchClass extends PatchClass {
         il.add(new LdcInsnNode(themeBTE));
         il.add(new FieldInsnNode(Opcodes.PUTSTATIC, PatchClass.mappings.get("ColorClass"), "themeFilePath", "Ljava/lang/String;"));
 
+        // If colorName argument is null or empty, attempt to resolve the name from Ramona object metadata
+        String getRamonaNameMethod = PatchClass.mappings.get("ColorBridgeClass.getRamonaName");
+        if (getRamonaNameMethod != null) {
+            LabelNode hasColorName = new LabelNode();
+            LabelNode fetchRamonaName = new LabelNode();
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex)); // Load colorName
+            il.add(new JumpInsnNode(Opcodes.IFNULL, fetchRamonaName));
+            il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "isEmpty", "()Z", false));
+            il.add(new JumpInsnNode(Opcodes.IFEQ, hasColorName));
+
+            il.add(fetchRamonaName);
+            il.add(new VarInsnNode(Opcodes.ALOAD, 0)); // this
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getRamonaNameMethod, "()Ljava/lang/String;", false));
+            il.add(new InsnNode(Opcodes.DUP));
+            LabelNode keepNull = new LabelNode();
+            il.add(new JumpInsnNode(Opcodes.IFNULL, keepNull));
+            il.add(new VarInsnNode(Opcodes.ASTORE, mArgIndex)); // Store resolved name back to colorName variable
+            il.add(new JumpInsnNode(Opcodes.GOTO, hasColorName));
+            il.add(keepNull);
+            il.add(new InsnNode(Opcodes.POP));
+            il.add(hasColorName);
+        }
+
         // Color class doesn't store color names originally
         // That's why we manually created them in ColorPatchClass
         // So, first of all, we need to run "colorInstance.colorName = colorName;"
@@ -172,6 +266,12 @@ public class BridgePatchClass extends PatchClass {
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex + 2)); // Load colorInstance (3rd argument, index 2)
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex)); // Load colorName (1st argument, index 0)
         il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "colorName", "Ljava/lang/String;"));
+
+        // Also save colorInstance onto ColorBridgeClass instance: this.targetColor = colorInstance;
+        il.add(new LabelNode());
+        il.add(new VarInsnNode(Opcodes.ALOAD, 0)); // this
+        il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex + 2)); // colorInstance
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, classNode.name, "targetColor", "L" + PatchClass.mappings.get("ColorClass") + ";"));
 
         // Now, we need to create a file object for "default.bte"
         // So, we need to run "File file = new File("default.bte");"
@@ -511,6 +611,84 @@ public class BridgePatchClass extends PatchClass {
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
 
+        // Add default entries for Note FX Chains (1 to 8)
+        String[] defaultNoteFXColors = new String[] {
+            "Note FX Chain 1: #808080",
+            "Note FX Chain 2: #406a80",
+            "Note FX Chain 3: #40804a",
+            "Note FX Chain 4: #808040",
+            "Note FX Chain 5: #80404a",
+            "Note FX Chain 6: #6a4080",
+            "Note FX Chain 7: #406080",
+            "Note FX Chain 8: #408055"
+        };
+        for (String fxEntry : defaultNoteFXColors) {
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new LdcInsnNode(fxEntry));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+        }
+
+        // Add default entries for Piano Roll (Black and White keys)
+        String[] defaultPianoRollColors = new String[] {
+            "Piano Roll Black Key: #1a1a1a",
+            "Piano Roll White Key: #b3b3b3"
+        };
+        for (String prEntry : defaultPianoRollColors) {
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new LdcInsnNode(prEntry));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+        }
+
+        // Add default entries for EQ Bands (1 to 8) and EQ Curve Line
+        String[] defaultEQColors = new String[] {
+            "EQ Band 1: #6a0f0f",
+            "EQ Band 2: #a51818",
+            "EQ Band 3: #e23b22",
+            "EQ Band 4: #c9ff26",
+            "EQ Band 5: #26ff84",
+            "EQ Band 6: #a4c3ff",
+            "EQ Band 7: #b7b7b7",
+            "EQ Band 8: #808080",
+            "EQ Curve Line: #ffffff"
+        };
+        for (String eqEntry : defaultEQColors) {
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new LdcInsnNode(eqEntry));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+        }
+
+        // Add default entries for Sampler Piano Keyboard
+        String[] defaultSamplerPianoColors = new String[] {
+            "Sampler White Key (Active): #b3b3b3",
+            "Sampler White Key (Inactive): #808080",
+            "Sampler White Key (Pressed): #ccffcc",
+            "Sampler Black Key (Active): #1a1a1a",
+            "Sampler Black Key (Inactive): #4d4d4d",
+            "Sampler Black Key (Pressed): #8cb38c",
+            "Sampler Octave Text: #1a1a1a"
+        };
+        for (String spEntry : defaultSamplerPianoColors) {
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new LdcInsnNode(spEntry));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
+            il.add(new LabelNode());
+            il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "newLine", "()V"));
+        }
+
         // Here is the java code:
         //                if ("track".equals(colorName)) {
         //                    writer.write("// <end>");
@@ -563,6 +741,14 @@ public class BridgePatchClass extends PatchClass {
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/BufferedWriter", "write", "(Ljava/lang/String;)V"));
         il.add(new JumpInsnNode(Opcodes.GOTO, labelNode_AM));
         il.add(labelNode_AL);
+        // Skip writing pseudo-styles / sentinels to default.bte
+        String[] pseudoStyles = new String[]{"Transparent", "Image Source", "Same as background", "Inherited"};
+        for (String pseudo : pseudoStyles) {
+            il.add(new LdcInsnNode(pseudo));
+            il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex));
+            il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+            il.add(new JumpInsnNode(Opcodes.IFNE, tryEnd_E));
+        }
         il.add(new VarInsnNode(Opcodes.ALOAD, writerSlot));
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex)); // Load colorName (1st argument, index 0)
         il.add(new VarInsnNode(Opcodes.ALOAD, mArgIndex + 2)); // Load colorInstance (3rd argument, index 2)
@@ -703,5 +889,156 @@ public class BridgePatchClass extends PatchClass {
                 e.printStackTrace();
             }
         */
+    }
+
+    private void patchResolveMethod() {
+        String colorClassName = PatchClass.mappings.get("ColorClass");
+        String getColorMethod = PatchClass.mappings.get("ColorClass.getColorMethod");
+        String getColorDesc = PatchClass.mappings.get("ColorClass.getColorDesc");
+
+        if (colorClassName == null || getColorMethod == null || getColorDesc == null) {
+            return;
+        }
+
+        String getRamonaNameMethod = PatchClass.mappings.get("ColorBridgeClass.getRamonaName");
+        if (getRamonaNameMethod == null) {
+            return;
+        }
+
+        // In Bitwig Studio, elements like "Knob Body" use Mode 2 ("Same as background")
+        // or Mode 3 (relative to parent background) with static transparent singleton QFL.eUA.
+        // In these modes, Bitwig calculates relative brightness from the parent container's background color,
+        // leaving most device knobs (Shape, Drv, Out, Pitch, Glide, FEG, AEG, Mod, Dynamics knobs, etc.) stock grey.
+        // Furthermore, unnamed styles (like knob bodies) are deserialized without going through addColorToUI.
+        // Here, we query the Ramona metadata directly from this (getRamonaNameMethod).
+        // If the user explicitly customized this color in theme.bte (targetColor.isCustomized == true),
+        // we allocate an isolated ColorClass, fetch the custom color, and return targetColor directly!
+        // This ensures custom colors work cleanly across all UI elements and devices without mutating QFL.eUA!
+        // If they didn't customize it, we fall back to Bitwig's original relative calculation.
+
+        InsnList hook = new InsnList();
+        LabelNode proceedLabel = new LabelNode();
+        LabelNode checkTargetLabel = new LabelNode();
+        LabelNode notCustomizedLabel = new LabelNode();
+
+        int nameSlot = resolveMethodNode.maxLocals++;
+
+        // 1. String ramonaName = this.getRamonaName();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, classNode.name, getRamonaNameMethod, "()Ljava/lang/String;", false));
+        hook.add(new VarInsnNode(Opcodes.ASTORE, nameSlot));
+
+        // 2. if (ramonaName == null) goto proceedLabel;
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
+        hook.add(new JumpInsnNode(Opcodes.IFNULL, proceedLabel));
+
+        // 3. if ("Same as background".equals(ramonaName)) ramonaName = "Knob Body";
+        LabelNode notSameAsBg = new LabelNode();
+        hook.add(new LdcInsnNode("Same as background"));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, notSameAsBg));
+        hook.add(new LdcInsnNode("Knob Body"));
+        hook.add(new VarInsnNode(Opcodes.ASTORE, nameSlot));
+        hook.add(notSameAsBg);
+
+        // 4. Filter pseudo-styles / sentinels: "Transparent", "Image Source", "Inherited"
+        String[] sentinels = new String[]{"Transparent", "Image Source", "Inherited"};
+        for (String sentinel : sentinels) {
+            hook.add(new LdcInsnNode(sentinel));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
+            hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+            hook.add(new JumpInsnNode(Opcodes.IFNE, proceedLabel));
+        }
+
+        // 5. Check if this.targetColor == null || !ramonaName.equals(this.targetColor.colorName)
+        LabelNode initColor = new LabelNode();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new JumpInsnNode(Opcodes.IFNULL, initColor));
+
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+        hook.add(new JumpInsnNode(Opcodes.IFNE, checkTargetLabel));
+
+        // Initialize isolated targetColor instance: this.targetColor = new ColorClass(0.0f, 0.0f, 0.0f, 0.0f);
+        hook.add(initColor);
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new TypeInsnNode(Opcodes.NEW, colorClassName));
+        hook.add(new InsnNode(Opcodes.DUP));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new InsnNode(Opcodes.FCONST_0));
+        hook.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFFF)V", false));
+        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, nameSlot));
+        hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
+
+        // 6. Trigger color fetch via getColorMethod()
+        hook.add(checkTargetLabel);
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
+        hook.add(new InsnNode(Opcodes.POP));
+
+        // 7. Check if this.targetColor.isCustomized == true
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+        hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, notCustomizedLabel));
+
+        // Return a fresh copy of this.targetColor if customized so callers that cache
+        // the returned ColorClass (like Bitwig's dNh/dNg knob bitmap cache) don't hold
+        // a mutable reference whose colorIntegerValue mutates in-place on theme changes.
+        String colorIntField = PatchClass.mappings.get("ColorClass.colorIntegerValue");
+        if (colorIntField != null) {
+            hook.add(new TypeInsnNode(Opcodes.NEW, colorClassName));
+            hook.add(new InsnNode(Opcodes.DUP));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new InsnNode(Opcodes.FCONST_0));
+            hook.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFFF)V", false));
+            hook.add(new InsnNode(Opcodes.DUP));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, colorIntField, "I"));
+            hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, colorIntField, "I"));
+            hook.add(new InsnNode(Opcodes.ARETURN));
+        } else {
+            String redField = PatchClass.mappings.get("ColorClass.redValue");
+            String greenField = PatchClass.mappings.get("ColorClass.greenValue");
+            String blueField = PatchClass.mappings.get("ColorClass.blueValue");
+            String alphaField = PatchClass.mappings.get("ColorClass.alphaValue");
+            hook.add(new TypeInsnNode(Opcodes.NEW, colorClassName));
+            hook.add(new InsnNode(Opcodes.DUP));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, redField, "F"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, greenField, "F"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, blueField, "F"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, classNode.name, "targetColor", "L" + colorClassName + ";"));
+            hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, alphaField, "F"));
+            hook.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, colorClassName, "<init>", "(FFFF)V", false));
+            hook.add(new InsnNode(Opcodes.ARETURN));
+        }
+
+        hook.add(notCustomizedLabel);
+        hook.add(proceedLabel);
+
+        resolveMethodNode.instructions.insert(hook);
+        resolveMethodNode.maxStack = Math.max(resolveMethodNode.maxStack, 8);
     }
 }

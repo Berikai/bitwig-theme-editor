@@ -9,6 +9,15 @@ import dev.berikai.BitwigTheme.core.PatchClass;
 import dev.berikai.BitwigTheme.core.IntegrityClass;
 import dev.berikai.BitwigTheme.core.impl.BridgePatchClass;
 import dev.berikai.BitwigTheme.core.impl.ColorPatchClass;
+import dev.berikai.BitwigTheme.core.impl.NoteFXPatchClass;
+import dev.berikai.BitwigTheme.core.impl.PianoRollPatchClass;
+import dev.berikai.BitwigTheme.core.impl.EQPatchClass;
+import dev.berikai.BitwigTheme.core.impl.SamplerPianoPatchClass;
+import dev.berikai.BitwigTheme.core.impl.DynamicsPatchClass;
+import dev.berikai.BitwigTheme.core.impl.TimelinePatchClass;
+import dev.berikai.BitwigTheme.core.impl.TitlebarAccentPatchClass;
+import dev.berikai.BitwigTheme.core.impl.SceneHeaderPatchClass;
+import dev.berikai.BitwigTheme.core.impl.DeactivatedPatchClass;
 import org.objectweb.asm.tree.FieldNode;
 
 import javax.swing.*;
@@ -136,6 +145,11 @@ public class Main {
     public static int applyPatch(String bitwig_path, JarNode jar) {
         System.out.println("Patching started...");
 
+        // Reset static patcher and mapping state to avoid cross-version contamination
+        PatchClass.mappings.clear();
+        JarNode.getModifiedNodes().clear();
+        JarNode.getComputeMaxNodes().clear();
+
         BitwigClass bwClass = new BitwigClass(jar.getNodes());
         if (!bwClass.isBitwigJAR()) {
             System.out.println("ERROR: Selected JAR file is not Bitwig Studio JAR.");
@@ -146,22 +160,50 @@ public class Main {
         bitwigVersion = bwClass.getVersion();
         System.out.println("Detected Bitwig Studio version: " + bitwigVersion);
 
-        // Initialize class patchers
+        // Initialize Tier 1 (Core) class patchers
         PatchClass colorClass = new ColorPatchClass(jar.getNodes());
         PatchClass bridgeClass = new BridgePatchClass(jar.getNodes());
+
+        // Tier 1 Validation: Core theming engine must be present and valid
+        if (colorClass.getClassNode() == null || bridgeClass.getClassNode() == null) {
+            String msg = "Core theming engine could not be identified for Bitwig Studio version: " + bitwigVersion + "\nPatching aborted to protect your installation.";
+            System.out.println("ERROR: " + msg);
+            if (isGUI) {
+                JOptionPane.showMessageDialog(null, msg, "Version Incompatible", JOptionPane.ERROR_MESSAGE);
+            }
+            return 2;
+        }
+
+        // Initialize Tier 2 (Widget Enhancements) class patchers
+        PatchClass noteFXClass = new NoteFXPatchClass(jar.getNodes());
+        PatchClass pianoRollClass = new PianoRollPatchClass(jar.getNodes());
+        PatchClass eqClass = new EQPatchClass(jar.getNodes());
+        PatchClass samplerPianoClass = new SamplerPianoPatchClass(jar.getNodes());
+        PatchClass dynamicsClass = new DynamicsPatchClass(jar.getNodes());
+        PatchClass timelineClass = new TimelinePatchClass(jar.getNodes());
+        PatchClass titlebarAccentClass = new TitlebarAccentPatchClass(jar.getNodes());
+        PatchClass sceneHeaderClass = new SceneHeaderPatchClass(jar.getNodes());
+        PatchClass deactivatedClass = new DeactivatedPatchClass(jar.getNodes());
 
         // Check if ColorClass already has the field "colorName"
         // This is to prevent double patching
         boolean alreadyPatched = false;
+        boolean hasIsCustomized = false;
         for (FieldNode field : colorClass.getClassNode().fields) {
             if (field.name.equals("colorName") && field.desc.equals("Ljava/lang/String;")) {
                 alreadyPatched = true;
-                break;
+            }
+            if (field.name.equals("isCustomized") && field.desc.equals("Z")) {
+                hasIsCustomized = true;
             }
         }
 
         if (alreadyPatched) {
             System.out.println(" -> Your bitwig.jar is already patched :)");
+
+            if (!hasIsCustomized) {
+                System.out.println(" -> Note: An older patch was detected. To enable Note FX chain coloring, Piano Roll, and Knob overrides, please restore original jar from " + bitwig_path + ".bak (or reinstall) and re-patch.");
+            }
 
             // If already patched, try to migrate from 2.1.0 version for changing bte path
             if(((BridgePatchClass) bridgeClass).migrateFromPreviousVersions()) {
@@ -197,9 +239,58 @@ public class Main {
         }
         System.out.println();
 
-        // Apply patches
+        // Apply Tier 1 (Core) patches
         colorClass.patch();
         bridgeClass.patch();
+
+        // Apply Tier 2 (Widget Enhancements) patches safely
+        if (noteFXClass.getClassNode() != null && noteFXClass.getMethodNode() != null) {
+            noteFXClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Note FX chain patch (widget not identified in this version).");
+        }
+
+        if (pianoRollClass.getClassNode() != null && pianoRollClass.getMethodNode() != null) {
+            pianoRollClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Piano Roll patch (widget not identified in this version).");
+        }
+
+        if (eqClass.getClassNode() != null && eqClass.getMethodNode() != null) {
+            eqClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping EQ bands patch (widget not identified in this version).");
+        }
+
+        if (samplerPianoClass.getClassNode() != null && samplerPianoClass.getMethodNode() != null) {
+            samplerPianoClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Sampler piano patch (widget not identified in this version).");
+        }
+
+        if (dynamicsClass.getClassNode() != null) {
+            dynamicsClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Dynamics history display patch (widget not identified in this version).");
+        }
+
+        if (timelineClass.getClassNode() != null) {
+            timelineClass.patch();
+        }
+
+        if (titlebarAccentClass.getClassNode() != null) {
+            titlebarAccentClass.patch();
+        }
+
+        if (sceneHeaderClass.getClassNode() != null) {
+            sceneHeaderClass.patch();
+        }
+
+        if (deactivatedClass.getClassNode() != null) {
+            deactivatedClass.patch();
+        } else {
+            System.out.println("WARNING: Skipping Deactivated overlay patch (widget method not identified in this version).");
+        }
 
         // Disable integrity check
         IntegrityClass integrityClass = new IntegrityClass(jar.getNodes());

@@ -20,8 +20,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.net.URI;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Scanner;
+import java.util.Set;
 
 import static java.lang.String.format;
 
@@ -44,6 +46,28 @@ public class Editor extends JFrame {
     private JButton redoButton1;
     private JButton undoButton2;
     private JButton redoButton2;
+    private JCheckBox globalThemeCheckBox;
+
+    private boolean isDefunctColorKey(String key) {
+        if ("Irrelevant Timeline Overlay".equals(key)) return true;
+        if ("Transparent".equals(key)
+                || "Image Source".equals(key)
+                || "Same as background".equals(key)
+                || "Inherited".equals(key)) {
+            return true;
+        }
+        return false;
+    }
+
+    private final java.util.List<ColorPanel> allItems1 = new java.util.ArrayList<>();
+    private final java.util.List<ColorPanel> allItems2 = new java.util.ArrayList<>();
+
+    private void resetSearchFilters() {
+        if (textField1 != null) textField1.setText("");
+        if (textField2 != null) textField2.setText("");
+        allItems1.clear();
+        allItems2.clear();
+    }
 
     private int hoveredIndex = -1;
 
@@ -109,37 +133,15 @@ public class Editor extends JFrame {
         JMenu fileMenu = new JMenu("File");
         JMenuItem importTheme = new JMenuItem("Import file");
         JMenuItem exportTheme = new JMenuItem("Export file");
+        JMenuItem resetToStock = new JMenuItem("Reset to default");
         JMenuItem exit = new JMenuItem("Exit");
         fileMenu.add(importTheme);
         fileMenu.add(exportTheme);
         fileMenu.addSeparator();
+        fileMenu.add(resetToStock);
+        fileMenu.addSeparator();
         fileMenu.add(exit);
         menuBar.add(fileMenu);
-
-        JMenu editorMenu = new JMenu("Editor");
-        JMenuItem resetToStock = new JMenuItem("Reset to default");
-        JMenuItem selectJar = new JMenuItem("Re-patch bitwig.jar");
-        JCheckBoxMenuItem globalTheme = new JCheckBoxMenuItem("Enable global theme file");
-        globalTheme.setState(Main.isGlobalTheme);
-        globalTheme.addActionListener(e -> {
-            boolean isSelected = globalTheme.getState();
-            Main.isGlobalTheme = isSelected;
-            dev.berikai.BitwigTheme.UI.MainUI.updateConfig(bitwig_path);
-
-            loadTheme(Main.getThemeConfigPath());
-
-            int response = JOptionPane.showConfirmDialog(this, "To apply this change for Bitwig Studio, bitwig.jar needs to be re-patched with this setting. Do you want to repatch it now?", "Confirm", JOptionPane.YES_NO_OPTION);
-            if (response == JOptionPane.YES_OPTION) {
-                Main.applyPatch(bitwig_path, Main.jar);
-            }
-        });
-
-        editorMenu.add(resetToStock);
-        editorMenu.addSeparator();
-        editorMenu.add(globalTheme);
-        editorMenu.addSeparator();
-        editorMenu.add(selectJar);
-        menuBar.add(editorMenu);
 
         JMenu helpMenu = new JMenu("Help");
         JMenuItem about = new JMenuItem("About");
@@ -150,6 +152,35 @@ public class Editor extends JFrame {
         helpMenu.addSeparator();
         helpMenu.add(github);
         menuBar.add(helpMenu);
+
+        menuBar.add(Box.createHorizontalGlue());
+
+        String versionText = (Main.bitwigVersion != null && !Main.bitwigVersion.isEmpty()) ? Main.bitwigVersion : "Unknown";
+        JLabel targetVersionLabel = new JLabel("Bitwig " + versionText);
+        Font targetFont = this.$$$getFont$$$(null, -1, 11, targetVersionLabel.getFont());
+        if (targetFont != null) targetVersionLabel.setFont(targetFont);
+        targetVersionLabel.setForeground(new Color(-6908266));
+        targetVersionLabel.setToolTipText(bitwig_path);
+        menuBar.add(targetVersionLabel);
+
+        menuBar.add(Box.createHorizontalStrut(8));
+
+        JButton switchJarButton = new JButton("Switch / Re-patch");
+        if (targetFont != null) switchJarButton.setFont(targetFont);
+        switchJarButton.setFocusable(false);
+        switchJarButton.putClientProperty("JButton.buttonType", "toolBarButton");
+        switchJarButton.setMargin(new Insets(2, 8, 2, 8));
+        switchJarButton.setToolTipText("Select or re-patch bitwig.jar");
+        switchJarButton.addActionListener(e -> {
+            int response = JOptionPane.showConfirmDialog(this, "Unsaved changes will be lost.", "Confirm Select JAR", JOptionPane.YES_NO_OPTION);
+            if (response == JOptionPane.YES_OPTION) {
+                setVisible(false);
+                Welcome.selectJar(this);
+                dispose();
+            }
+        });
+        menuBar.add(switchJarButton);
+        menuBar.add(Box.createHorizontalStrut(6));
 
         about.addActionListener(e -> showAboutDialog());
         themes.addActionListener(e -> openWebpage("https://github.com/Berikai/awesome-bitwig-themes"));
@@ -164,15 +195,6 @@ public class Editor extends JFrame {
                 minimizeThemeOnExportCheckBox.setSelected(false); // Temporarily disable minimize to export all colors, needed to reset to stock values
                 saveThemeColors(Main.getThemeConfigPath());
                 minimizeThemeOnExportCheckBox.setSelected(minimize);
-            }
-        });
-
-        selectJar.addActionListener(e -> {
-            int response = JOptionPane.showConfirmDialog(this, "Unsaved changes will be lost.", "Confirm Select JAR", JOptionPane.YES_NO_OPTION);
-            if (response == JOptionPane.YES_OPTION) {
-                setVisible(false);
-                Welcome.selectJar(this);
-                dispose();
             }
         });
 
@@ -335,12 +357,12 @@ public class Editor extends JFrame {
 
             JTextField textField = (list == list1) ? textField1 : textField2;
 
-            final java.util.List<ColorPanel> allItems = new java.util.ArrayList<>();
+            final java.util.List<ColorPanel> allItems = (list == list1) ? allItems1 : allItems2;
             textField.getDocument().addDocumentListener(new DocumentListener() {
                 private void search() {
                     String searchText = textField.getText().toLowerCase().trim();
 
-                    if (allItems.isEmpty()) {
+                    if (allItems.isEmpty() && listModel.size() > 0) {
                         for (int i = 0; i < listModel.size(); i++) {
                             allItems.add(listModel.getElementAt(i));
                         }
@@ -352,7 +374,7 @@ public class Editor extends JFrame {
                         for (ColorPanel item : allItems) {
                             listModel.addElement(item);
                         }
-
+                        allItems.clear();
                         list.clearSelection();
                     } else {
                         for (ColorPanel item : allItems) {
@@ -394,6 +416,20 @@ public class Editor extends JFrame {
             boolean isSelected = alwaysOnTopCheckbox.isSelected();
             setAlwaysOnTop(isSelected);
             System.out.println("-> Always on top: " + isSelected);
+        });
+
+        globalThemeCheckBox.setSelected(Main.isGlobalTheme);
+        globalThemeCheckBox.addActionListener(e -> {
+            boolean isSelected = globalThemeCheckBox.isSelected();
+            Main.isGlobalTheme = isSelected;
+            dev.berikai.BitwigTheme.UI.MainUI.updateConfig(bitwig_path);
+
+            loadTheme(Main.getThemeConfigPath());
+
+            int response = JOptionPane.showConfirmDialog(this, "To apply this change for Bitwig Studio, bitwig.jar needs to be re-patched with this setting. Do you want to repatch it now?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if (response == JOptionPane.YES_OPTION) {
+                Main.applyPatch(bitwig_path, Main.jar);
+            }
         });
 
         buyMeACoffeeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -452,6 +488,8 @@ public class Editor extends JFrame {
     }
 
     private void loadDefaultThemeColors() {
+        resetSearchFilters();
+
         String themeFilePath = Main.getVersionConfigPath("default.bte");
         File themeFile = new File(themeFilePath);
 
@@ -464,6 +502,17 @@ public class Editor extends JFrame {
         DefaultListModel<ColorPanel> listModel2 = (DefaultListModel<ColorPanel>) list2.getModel();
         listModel.clear();
         listModel2.clear();
+
+        boolean hasNoteFX = false;
+        boolean hasPianoRoll = false;
+        boolean hasEQ = false;
+        boolean hasSamplerPiano = false;
+        boolean hasSamplerPressed = false;
+        boolean hasDynamicsBg = false;
+        boolean hasTimelineGrid = false;
+        boolean hasDeactivatedOverlay = false;
+        boolean needsSanitization = false;
+        Set<String> seenKeys = new HashSet<>();
 
         // Read the theme file line by line, separate lines with ": " to get key and value
         // For each line, create a ColorPanel item and add it to the list1
@@ -488,16 +537,53 @@ public class Editor extends JFrame {
                     continue;
                 }
 
-
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
-                    if (parts[0].equals("Gradient")) {
+                    String key = parts[0].trim();
+                    if (key.equals("Gradient")) {
                         disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
                     }
+                    if (isDefunctColorKey(key)) {
+                        needsSanitization = true;
+                        continue;
+                    }
+                    if (!seenKeys.add(key)) {
+                        needsSanitization = true;
+                        continue;
+                    }
+                    if (key.startsWith("Note FX Chain")) {
+                        hasNoteFX = true;
+                    }
+                    if (key.startsWith("Piano Roll")) {
+                        hasPianoRoll = true;
+                    }
+                    if (key.startsWith("EQ Band") || key.equals("EQ Curve Line")) {
+                        hasEQ = true;
+                    }
+                    if (key.startsWith("Sampler")) {
+                        hasSamplerPiano = true;
+                        if (key.contains("(Pressed)")) {
+                            hasSamplerPressed = true;
+                        }
+                    }
+                    if (key.equals("Dynamics Background")) {
+                        hasDynamicsBg = true;
+                    }
+                    if (key.equals("Timeline Primary Grid")) {
+                        hasTimelineGrid = true;
+                    }
+                    if (key.equals("Deactivated Overlay")) {
+                        hasDeactivatedOverlay = true;
+                    }
+                    String value = parts[1].split("//")[0].trim();
+                    if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
+                        value = "#b3b3b3";
+                        needsSanitization = true;
+                    }
                     ColorPanel item;
                     try {
-                        item = new ColorPanel(parts[0].trim(), parts[1].split("//")[0].trim());
+                        item = new ColorPanel(key, value);
                         try {
                             item.setComment(parts[1].split("//")[1].trim());
                         } catch (Exception e) {
@@ -514,11 +600,218 @@ public class Editor extends JFrame {
             throw new RuntimeException(e);
         }
 
+        // If default.bte was created by an older BTE version without Note FX colors, append them now
+        if (!hasNoteFX) {
+            String[][] defaultNoteFX = new String[][] {
+                {"Note FX Chain 1", "#808080"},
+                {"Note FX Chain 2", "#406a80"},
+                {"Note FX Chain 3", "#40804a"},
+                {"Note FX Chain 4", "#808040"},
+                {"Note FX Chain 5", "#80404a"},
+                {"Note FX Chain 6", "#6a4080"},
+                {"Note FX Chain 7", "#406080"},
+                {"Note FX Chain 8", "#408055"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Note FX Chain Colors");
+                bw.newLine();
+                for (String[] fx : defaultNoteFX) {
+                    bw.write(fx[0] + ": " + fx[1]);
+                    bw.newLine();
+                    if (seenKeys.add(fx[0])) {
+                        ColorPanel item = new ColorPanel(fx[0], fx[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created by an older BTE version without Piano Roll colors, append them now
+        if (!hasPianoRoll) {
+            String[][] defaultPianoRoll = new String[][] {
+                {"Piano Roll Black Key", "#1a1a1a"},
+                {"Piano Roll White Key", "#b3b3b3"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Piano Roll Colors");
+                bw.newLine();
+                for (String[] pr : defaultPianoRoll) {
+                    bw.write(pr[0] + ": " + pr[1]);
+                    bw.newLine();
+                    if (seenKeys.add(pr[0])) {
+                        ColorPanel item = new ColorPanel(pr[0], pr[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created by an older BTE version without EQ colors, append them now
+        if (!hasEQ) {
+            String[][] defaultEQ = new String[][] {
+                {"EQ Band 1", "#6a0f0f"},
+                {"EQ Band 2", "#a51818"},
+                {"EQ Band 3", "#e23b22"},
+                {"EQ Band 4", "#c9ff26"},
+                {"EQ Band 5", "#26ff84"},
+                {"EQ Band 6", "#a4c3ff"},
+                {"EQ Band 7", "#b7b7b7"},
+                {"EQ Band 8", "#808080"},
+                {"EQ Curve Line", "#ffffff"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// EQ Frequency Band and Curve Colors");
+                bw.newLine();
+                for (String[] eq : defaultEQ) {
+                    bw.write(eq[0] + ": " + eq[1]);
+                    bw.newLine();
+                    if (seenKeys.add(eq[0])) {
+                        ColorPanel item = new ColorPanel(eq[0], eq[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created by an older BTE version without Sampler Piano colors, append them now
+        if (!hasSamplerPiano) {
+            String[][] defaultSamplerPiano = new String[][] {
+                {"Sampler White Key (Active)", "#b3b3b3"},
+                {"Sampler White Key (Inactive)", "#808080"},
+                {"Sampler White Key (Pressed)", "#ccffcc"},
+                {"Sampler Black Key (Active)", "#1a1a1a"},
+                {"Sampler Black Key (Inactive)", "#4d4d4d"},
+                {"Sampler Black Key (Pressed)", "#8cb38c"},
+                {"Sampler Octave Text", "#1a1a1a"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Sampler Piano Keyboard Colors");
+                bw.newLine();
+                for (String[] sp : defaultSamplerPiano) {
+                    bw.write(sp[0] + ": " + sp[1]);
+                    bw.newLine();
+                    if (seenKeys.add(sp[0])) {
+                        ColorPanel item = new ColorPanel(sp[0], sp[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+        } else if (!hasSamplerPressed) {
+            String[][] defaultSamplerPressed = new String[][] {
+                {"Sampler White Key (Pressed)", "#ccffcc"},
+                {"Sampler Black Key (Pressed)", "#8cb38c"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                for (String[] sp : defaultSamplerPressed) {
+                    bw.write(sp[0] + ": " + sp[1]);
+                    bw.newLine();
+                    if (seenKeys.add(sp[0])) {
+                        ColorPanel item = new ColorPanel(sp[0], sp[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created without Dynamics visualizer background color, append it now
+        if (!hasDynamicsBg) {
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Visualizer Background Colors");
+                bw.newLine();
+                bw.write("Dynamics Background: #333333");
+                bw.newLine();
+                if (seenKeys.add("Dynamics Background")) {
+                    ColorPanel item = new ColorPanel("Dynamics Background", "#333333");
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created without Deactivated Overlay, append it now
+        if (!hasDeactivatedOverlay) {
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Deactivated Track & Device Tint");
+                bw.newLine();
+                bw.write("Deactivated Overlay: #26262680");
+                bw.newLine();
+                if (seenKeys.add("Deactivated Overlay")) {
+                    ColorPanel item = new ColorPanel("Deactivated Overlay", "#26262680");
+                    item.setComment("");
+                    listModel.addElement(item);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created without decoupled Timeline keys (Bitwig 6+), append them now
+        if (!hasTimelineGrid) {
+            String[][] timelineDefaults = new String[][]{
+                {"Top Level Timeline Background", "#262626"},
+                {"Dark Timeline Background", "#262626"},
+                {"Light Timeline Background", "#262626"},
+                {"Irrelevant Timeline Background", "#262626"},
+                {"Timeline Background Pattern", "#262626"},
+                {"Timeline Primary Grid", "#000000"},
+                {"Timeline Secondary Grid", "#00000050"}
+            };
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Decoupled Timeline Colors");
+                bw.newLine();
+                for (String[] entry : timelineDefaults) {
+                    if (seenKeys.add(entry[0])) {
+                        bw.write(entry[0] + ": " + entry[1]);
+                        bw.newLine();
+                        ColorPanel item = new ColorPanel(entry[0], entry[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte contained defunct keys, duplicates, or outdated color values, sanitize default.bte on disk
+        if (needsSanitization) {
+            try (PrintWriter writer = new PrintWriter(themeFile)) {
+                writer.println("// Default color values for Bitwig Studio " + (Main.bitwigVersion != null ? Main.bitwigVersion : ""));
+                writer.println("// This file is auto-generated, please DO NOT edit.");
+                writer.println("Gradient: " + (!disableGradientCheckBox.isSelected()));
+                Set<String> sanitizedWrittenKeys = new HashSet<>();
+                for (int i = 0; i < listModel.size(); i++) {
+                    ColorPanel cp = listModel.getElementAt(i);
+                    if (isDefunctColorKey(cp.getKey())) continue;
+                    if (!sanitizedWrittenKeys.add(cp.getKey())) continue;
+                    writer.println(cp.getKey() + ": " + cp.getValue() + (!cp.getComment().isEmpty() ? " // " + cp.getComment() : ""));
+                }
+                writer.println("// <end>");
+            } catch (Exception ignored) {}
+        }
+
         colorsSizeLabel.setText("Colors: " + listModel.size());
         modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
     }
 
     public void loadThemeColors(String themeFilePath) {
+        resetSearchFilters();
         // Similar to loadDefaultThemeColors but loads from a user-selected theme file
         File themeFile = new File(themeFilePath);
         if (!themeFile.exists()) {
@@ -532,36 +825,38 @@ public class Editor extends JFrame {
         }
 
         DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
+        boolean themeNeedsSanitization = false;
+        java.util.Set<String> explicitKeys = new java.util.HashSet<>();
 
         try (Scanner scanner = new Scanner(themeFile)) {
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
-                    if (parts[0].equals("Gradient")) {
+                    String rawKey = parts[0].trim();
+                    if (rawKey.equals("Gradient")) {
                         disableGradientCheckBox.setSelected(parts[1].split("//")[0].trim().equals("false"));
                         continue;
                     }
-                    for (Object _panel : listModel.toArray()) {
-                        if (!(_panel instanceof ColorPanel)) continue;
-                        ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(parts[0].trim()) : parts[0].trim();
-                        if (panel.getKey().equals(colorKey)) {
-                            try {
-                                panel.setValue(parts[1].split("//")[0].trim());
-                                try {
-                                    panel.setComment(parts[1].split("//")[1].trim());
-                                } catch (Exception e) {
-                                    panel.setComment("");
-                                }
-                                updateModifiedList(panel);
-                            } catch (Exception e) {
-                                System.out.println("-> Skipping invalid line in theme file: " + line);
-                                continue;
-                            }
-                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(parts[1].split("//")[0].trim()));
-                            panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
-                        }
+                    if (isDefunctColorKey(rawKey)) {
+                        themeNeedsSanitization = true;
+                        continue;
+                    }
+                    String rawValue = parts[1].split("//")[0].trim();
+                    if (rawKey.equals("Piano Roll White Key") && (rawValue.equalsIgnoreCase("#ffffff1a") || rawValue.length() == 9)) {
+                        rawValue = "#b3b3b3";
+                        themeNeedsSanitization = true;
+                    }
+                    String comment = "";
+                    try {
+                        comment = parts[1].split("//")[1].trim();
+                    } catch (Exception ignored) {}
+
+                    String colorKey = normalizeColorKey(rawKey);
+                    explicitKeys.add(rawKey);
+                    explicitKeys.add(colorKey);
+                    if (!applyThemeColorEntry(listModel, rawKey, colorKey, rawValue, comment, explicitKeys)) {
+                        System.out.println("-> Skipping invalid line in theme file: " + line);
                     }
                     list1.repaint();
                 }
@@ -569,12 +864,17 @@ public class Editor extends JFrame {
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
-        
+
+        if (themeNeedsSanitization) {
+            saveThemeColors(themeFilePath);
+        }
+
         this.currentThemePath = themeFilePath;
         System.out.println("-> Loaded theme from: " + themeFilePath);
     }
 
     public void loadThemeColorsFromJSON(String themeFilePath) {
+        resetSearchFilters();
         // Similar to loadDefaultThemeColors but loads from a user-selected theme file
         File themeFile = new File(themeFilePath);
         if (!themeFile.exists()) {
@@ -588,6 +888,7 @@ public class Editor extends JFrame {
         }
 
         DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
+        java.util.Set<String> explicitKeys = new java.util.HashSet<>();
 
         try (Scanner scanner = new Scanner(themeFile)) {
             while (scanner.hasNextLine()) {
@@ -597,25 +898,23 @@ public class Editor extends JFrame {
                         .replace("\"", ""); // Eliminate quotes
                 String[] parts = line.split(": ");
                 if (parts.length == 2) {
-                    if (parts[0].equals("Gradient")) {
+                    String rawKey = parts[0].trim();
+                    if (rawKey.equals("Gradient")) {
                         disableGradientCheckBox.setSelected(parts[1].trim().equals("false"));
                         continue;
                     }
-                    for (Object _panel : listModel.toArray()) {
-                        if (!(_panel instanceof ColorPanel)) continue;
-                        ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(parts[0].trim()) : parts[0].trim();
-                        if (panel.getKey().equals(colorKey)) {
-                            try {
-                                panel.setValue(parts[1].trim());
-                                updateModifiedList(panel);
-                            } catch (Exception e) {
-                                System.out.println("-> Skipping invalid line in theme file: " + line);
-                                continue;
-                            }
-                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(parts[1].trim()));
-                            panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
-                        }
+                    if (isDefunctColorKey(rawKey)) {
+                        continue;
+                    }
+                    String rawValue = parts[1].trim();
+                    if (rawKey.equals("Piano Roll White Key") && (rawValue.equalsIgnoreCase("#ffffff1a") || rawValue.length() == 9)) {
+                        rawValue = "#b3b3b3";
+                    }
+                    String colorKey = normalizeColorKey(rawKey);
+                    explicitKeys.add(rawKey);
+                    explicitKeys.add(colorKey);
+                    if (!applyThemeColorEntry(listModel, rawKey, colorKey, rawValue, null, explicitKeys)) {
+                        System.out.println("-> Skipping invalid line in theme file: " + line);
                     }
                     list1.repaint();
                 }
@@ -628,6 +927,39 @@ public class Editor extends JFrame {
         System.out.println("-> Loaded theme from (JSON): " + themeFilePath);
     }
     
+    private boolean applyThemeColorEntry(DefaultListModel<ColorPanel> listModel, String rawKey, String colorKey, String rawValue, String comment, java.util.Set<String> explicitKeys) {
+        String compatGreyKey = null;
+        if (isBitwig6OrNewer && compatibilityForOldThemesCheckBox.isSelected()) {
+            if ("Dark Timeline Background".equals(rawKey) && !explicitKeys.contains("Grey 1")) {
+                compatGreyKey = "Grey 1";
+            } else if ("Light Timeline Background".equals(rawKey) && !explicitKeys.contains("Grey 2")) {
+                compatGreyKey = "Grey 2";
+            } else if ("Panel body".equals(rawKey) && !explicitKeys.contains("Grey 4")) {
+                compatGreyKey = "Grey 4";
+            }
+        }
+
+        for (Object _panel : listModel.toArray()) {
+            if (!(_panel instanceof ColorPanel)) continue;
+            ColorPanel panel = (ColorPanel) _panel;
+            String panelKey = panel.getKey();
+            if (panelKey.equals(colorKey) || panelKey.equals(rawKey) || panelKey.equals(compatGreyKey)) {
+                try {
+                    panel.setValue(rawValue);
+                    if (comment != null) {
+                        panel.setComment(comment);
+                    }
+                    updateModifiedList(panel);
+                } catch (Exception e) {
+                    return false;
+                }
+                panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(rawValue));
+                panel.setToolTipText(panelKey + ": " + panel.getValue());
+            }
+        }
+        return true;
+    }
+
     public void loadTheme(String path) {
         loadDefaultThemeColors();
         if (path.endsWith(".json")) {
@@ -651,6 +983,9 @@ public class Editor extends JFrame {
                     break;
                 }
             }
+            if (!allItems2.isEmpty()) {
+                allItems2.removeIf(item -> item.getKey().equals(panel.getKey()));
+            }
         } else {
             // If the color is modified, add it to modified list if not already present
             boolean found = false;
@@ -664,8 +999,12 @@ public class Editor extends JFrame {
             if (!found) {
                 listModel2.addElement(panel);
             }
+            if (!allItems2.isEmpty()) {
+                boolean inAll = allItems2.stream().anyMatch(item -> item.getKey().equals(panel.getKey()));
+                if (!inAll) allItems2.add(panel);
+            }
         }
-        modifiedSizeLabel.setText("Modified Colors: " + listModel2.size());
+        modifiedSizeLabel.setText("Modified Colors: " + (!allItems2.isEmpty() ? allItems2.size() : listModel2.size()));
         list2.repaint();
     }
 
@@ -689,13 +1028,169 @@ public class Editor extends JFrame {
             writer.println("// Theme file generated by Bitwig Theme Editor " + Main.version);
             writer.println("// Bitwig Studio version: " + Main.bitwigVersion);
             writer.println("Gradient: " + (!disableGradientCheckBox.isSelected()));
-            for (Object _panel : minimizeThemeOnExportCheckBox.isSelected() ? listModel2.toArray() : listModel.toArray()) {
+            Object[] panelsToSave;
+            if (minimizeThemeOnExportCheckBox.isSelected()) {
+                panelsToSave = !allItems2.isEmpty() ? allItems2.toArray() : listModel2.toArray();
+            } else {
+                panelsToSave = !allItems1.isEmpty() ? allItems1.toArray() : listModel.toArray();
+            }
+            java.util.Set<String> writtenKeys = new java.util.HashSet<>();
+            java.util.List<ColorPanel> writtenPanels = new java.util.ArrayList<>();
+            for (Object _panel : panelsToSave) {
                 if (!(_panel instanceof ColorPanel)) continue;
                 ColorPanel panel = (ColorPanel) _panel;
-                writer.println(panel.getKey() + ": " + panel.getValue() + (!panel.getComment().isEmpty() ? " // " + panel.getComment() : ""));
+                if (isDefunctColorKey(panel.getKey())) continue;
+                String key = panel.getKey();
+                String val = panel.getValue();
+                String comment = !panel.getComment().isEmpty() ? " // " + panel.getComment() : "";
+
+                if (writtenKeys.add(key)) {
+                    writer.println(key + ": " + val + comment);
+                    writtenPanels.add(panel);
+                }
+            }
+            for (ColorPanel panel : writtenPanels) {
+                writeCrossVersionAliases(writer, panel.getKey(), panel.getValue(), writtenKeys);
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Failed to save theme file!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void writeCrossVersionAliases(PrintWriter writer, String key, String val, java.util.Set<String> writtenKeys) {
+        String[] aliases = null;
+        switch (key) {
+            case "Grid Line (Primary)":
+                aliases = new String[]{"Timeline Header Primary Grid", "Timeline Primary Grid"};
+                break;
+            case "Timeline Header Primary Grid":
+            case "Timeline Primary Grid":
+                aliases = new String[]{"Grid Line (Primary)"};
+                break;
+            case "Grid Line (Secondary)":
+                aliases = new String[]{"Timeline Header Secondary Grid", "Timeline Secondary Grid"};
+                break;
+            case "Timeline Header Secondary Grid":
+            case "Timeline Secondary Grid":
+                aliases = new String[]{"Grid Line (Secondary)"};
+                break;
+            case "Accent (hitech)":
+                aliases = new String[]{"Hitech on"};
+                break;
+            case "Hitech on":
+                aliases = new String[]{"Accent (hitech)"};
+                break;
+            case "Accent (default)":
+                aliases = new String[]{"On"};
+                break;
+            case "On":
+                aliases = new String[]{"Accent (default)"};
+                break;
+            case "Grey 0":
+                aliases = new String[]{"Hole (dark)"};
+                break;
+            case "Hole (dark)":
+                aliases = new String[]{"Grey 0"};
+                break;
+            case "Grey 1":
+                aliases = new String[]{"Dark Timeline Background"};
+                break;
+            case "Dark Timeline Background":
+                aliases = new String[]{"Grey 1"};
+                break;
+            case "Grey 2":
+                aliases = new String[]{"Light Timeline Background"};
+                break;
+            case "Light Timeline Background":
+                aliases = new String[]{"Grey 2"};
+                break;
+            case "Grey 3":
+                aliases = new String[]{"Hole (medium)"};
+                break;
+            case "Hole (medium)":
+                aliases = new String[]{"Grey 3"};
+                break;
+            case "Grey 5":
+                aliases = new String[]{"Panel body"};
+                break;
+            case "Panel body":
+                aliases = new String[]{"Grey 5"};
+                break;
+            case "Grey 6":
+                aliases = new String[]{"Selected Panel body"};
+                break;
+            case "Selected Panel body":
+                aliases = new String[]{"Grey 6"};
+                break;
+            case "Panel Stroke (focused)":
+                aliases = new String[]{"Active Panel stroke"};
+                break;
+            case "Active Panel stroke":
+                aliases = new String[]{"Panel Stroke (focused)"};
+                break;
+            case "White Selection":
+                aliases = new String[]{"Selection"};
+                break;
+            case "Selection":
+                aliases = new String[]{"White Selection"};
+                break;
+            case "White Selection (standby)":
+                aliases = new String[]{"Standby selection"};
+                break;
+            case "Standby selection":
+                aliases = new String[]{"White Selection (standby)"};
+                break;
+            default:
+                break;
+        }
+        if (aliases != null) {
+            for (String alias : aliases) {
+                if (writtenKeys.add(alias)) {
+                    writer.println(alias + ": " + val);
+                }
+            }
+        }
+    }
+
+    private String normalizeColorKey(String rawKey) {
+        if (isBitwig6OrNewer) {
+            return compatibilityForOldThemesCheckBox.isSelected() ? matchColorNameToBitwig6(rawKey) : rawKey;
+        } else {
+            return matchColorNameToBitwig4And5(rawKey);
+        }
+    }
+
+    private String matchColorNameToBitwig4And5(String newName) {
+        // Map new color names back to old ones for Bitwig 4 & 5 backwards compatibility
+        switch (newName) {
+            case "Accent (default)":
+                return "On";
+            case "Accent (hitech)":
+                return "Hitech on";
+            case "Grid Line (Primary)":
+                return "Timeline Primary Grid";
+            case "Grid Line (Secondary)":
+                return "Timeline Secondary Grid";
+            case "Grey 0":
+                return "Hole (dark)";
+            case "Grey 1":
+                return "Dark Timeline Background";
+            case "Grey 2":
+                return "Light Timeline Background";
+            case "Grey 3":
+                return "Hole (medium)";
+            case "Grey 5":
+                return "Panel body";
+            case "Grey 6":
+                return "Selected Panel body";
+            case "Panel Stroke (focused)":
+                return "Active Panel stroke";
+            case "White Selection":
+                return "Selection";
+            case "White Selection (standby)":
+                return "Standby selection";
+            default:
+                return newName;
         }
     }
 
@@ -706,23 +1201,30 @@ public class Editor extends JFrame {
                 return "Accent (default)";
             case "Hitech on":
                 return "Accent (hitech)";
+            case "Timeline Header Primary Grid":
+                return "Grid Line (Primary)";
+            case "Timeline Header Secondary Grid":
+                return "Grid Line (Secondary)";
             case "Hole (dark)":
                 return "Grey 0";
-            case "Dark Timeline Background":
-                return "Grey 1";
-            case "Light Timeline Background":
-                return "Grey 2";
             case "Hole (medium)": // and Hole (light)
+            case "Hole (light)":
                 return "Grey 3";
             case "Panel body": // and Window Background
+            case "Content Background":
+            case "Dialog background":
                 return "Grey 5";
             case "Selected Panel body": // and Window Background
                 return "Grey 6";
-            // TODO: More to add...
+            case "Active Panel stroke":
+                return "Panel Stroke (focused)";
+            case "Selection":
+                return "White Selection";
+            case "Standby selection":
+                return "White Selection (standby)";
             default:
                 return oldName;
         }
-
     }
 
     private void showAboutDialog() {
@@ -895,13 +1397,13 @@ public class Editor extends JFrame {
         redoButton2.setToolTipText("Redo");
         toolBar2.add(redoButton2);
         final JPanel panel5 = new JPanel();
-        panel5.setLayout(new GridLayoutManager(10, 2, new Insets(10, 10, 10, 10), -1, -1));
+        panel5.setLayout(new GridLayoutManager(12, 2, new Insets(10, 10, 10, 10), -1, -1));
         tabbedPane1.addTab("Options", panel5);
         disableGradientCheckBox = new JCheckBox();
         disableGradientCheckBox.setText("Disable gradient");
         panel5.add(disableGradientCheckBox, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer3 = new Spacer();
-        panel5.add(spacer3, new GridConstraints(9, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
+        panel5.add(spacer3, new GridConstraints(11, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         alwaysOnTopCheckbox = new JCheckBox();
         alwaysOnTopCheckbox.setSelected(true);
         alwaysOnTopCheckbox.setText("Set always on top");
@@ -943,6 +1445,15 @@ public class Editor extends JFrame {
         label5.setForeground(new Color(-9737874));
         label5.setText("Make the UI always on top of all windows.");
         panel5.add(label5, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 3, false));
+        globalThemeCheckBox = new JCheckBox();
+        globalThemeCheckBox.setText("Enable global theme file");
+        panel5.add(globalThemeCheckBox, new GridConstraints(9, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JLabel labelGlobalTheme = new JLabel();
+        Font labelGlobalThemeFont = this.$$$getFont$$$(null, -1, 10, labelGlobalTheme.getFont());
+        if (labelGlobalThemeFont != null) labelGlobalTheme.setFont(labelGlobalThemeFont);
+        labelGlobalTheme.setForeground(new Color(-9737874));
+        labelGlobalTheme.setText("Share one theme.bte across all patched Bitwig Studio versions (re-patch required).");
+        panel5.add(labelGlobalTheme, new GridConstraints(10, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 3, false));
         final JPanel panel6 = new JPanel();
         panel6.setLayout(new GridLayoutManager(1, 5, new Insets(5, 0, 5, 0), -1, -1));
         mainPanel.add(panel6, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));

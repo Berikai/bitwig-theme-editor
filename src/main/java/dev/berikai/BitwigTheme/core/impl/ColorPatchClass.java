@@ -53,8 +53,8 @@ public class ColorPatchClass extends PatchClass {
                 type = ColorPatchClass.TYPE_POST_5_2;
                 PatchClass.mappings.put("ColorClass.colorIntegerValue", field.name);
 
-                // Remove final from colorIntegerValue field if it exists, because we want to change
-                field.access = field.access & ~Opcodes.ACC_FINAL;
+                // Remove final and make field public so it can be mutated and accessed safely
+                field.access = (field.access & ~(Opcodes.ACC_PRIVATE | Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL)) | Opcodes.ACC_PUBLIC;
                 break;
             }
 
@@ -81,8 +81,8 @@ public class ColorPatchClass extends PatchClass {
 
                 PatchClass.mappings.put("ColorClass." + floatFieldName, field.name);
 
-                // Remove final from colorIntegerValue field if it exists, because we want to change
-                field.access = field.access & ~Opcodes.ACC_FINAL;
+                // Remove final and make field public so it can be mutated and accessed safely
+                field.access = (field.access & ~(Opcodes.ACC_PRIVATE | Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL)) | Opcodes.ACC_PUBLIC;
 
                 floatFieldCount++;
             }
@@ -157,6 +157,9 @@ public class ColorPatchClass extends PatchClass {
 
             methodNode = getColorIntegerMethod;
 
+            PatchClass.mappings.put("ColorClass.getColorMethod", methodNode.name);
+            PatchClass.mappings.put("ColorClass.getColorDesc", methodNode.desc);
+
             return; // <<<
         }
 
@@ -176,6 +179,8 @@ public class ColorPatchClass extends PatchClass {
                     methodCounter++;
                 } else {
                     methodNode = mn;
+                    PatchClass.mappings.put("ColorClass.getColorMethod", methodNode.name);
+                    PatchClass.mappings.put("ColorClass.getColorDesc", methodNode.desc);
                     break;
                 }
             }
@@ -195,6 +200,9 @@ public class ColorPatchClass extends PatchClass {
 
         // Create a field to disable gradient
         classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "disableGradient", "Z", null, null));
+
+        // Create a field to indicate whether color was customized in theme.bte
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC, "isCustomized", "Z", null, null));
     }
 
     // The code we will inject here to the found method is responsible for reading "theme.bte"
@@ -332,6 +340,9 @@ public class ColorPatchClass extends PatchClass {
         il.add(new InsnNode(Opcodes.LCMP));
         il.add(new JumpInsnNode(Opcodes.IFLE, returnLabel));
         il.add(labelNode_B);
+        il.add(new VarInsnNode(Opcodes.ALOAD, 0/*this*/));
+        il.add(new InsnNode(Opcodes.ICONST_0));
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "isCustomized", "Z"));
         il.add(new VarInsnNode(Opcodes.ALOAD, 0/*this*/));
         il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J"));
         il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "lastColorFetch", "J"));
@@ -1284,6 +1295,22 @@ public class ColorPatchClass extends PatchClass {
             il.add(new VarInsnNode(Opcodes.FLOAD, aSlot));
             il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), PatchClass.mappings.get("ColorClass.alphaValue"), "F"));
         }
+        // Mark color as customized in theme.bte only if non-transparent (alpha != 0.0f)
+        LabelNode setFalseLabel = new LabelNode();
+        LabelNode storeLabel = new LabelNode();
+        il.add(new LabelNode());
+        il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        il.add(new VarInsnNode(Opcodes.FLOAD, aSlot));
+        il.add(new InsnNode(Opcodes.FCONST_0));
+        il.add(new InsnNode(Opcodes.FCMPL));
+        il.add(new JumpInsnNode(Opcodes.IFEQ, setFalseLabel));
+        il.add(new InsnNode(Opcodes.ICONST_1));
+        il.add(new JumpInsnNode(Opcodes.GOTO, storeLabel));
+        il.add(setFalseLabel);
+        il.add(new InsnNode(Opcodes.ICONST_0));
+        il.add(storeLabel);
+        il.add(new FieldInsnNode(Opcodes.PUTFIELD, PatchClass.mappings.get("ColorClass"), "isCustomized", "Z"));
+
         il.add(new LabelNode());
         il.add(new JumpInsnNode(Opcodes.GOTO, returnLabel)); //  It was tryStart_B
         il.add(tryEnd_C);il.add(labelNode_AN);
