@@ -8,20 +8,24 @@ import org.objectweb.asm.tree.*;
 import java.util.HashMap;
 
 public class DeactivatedPatchClass extends PatchClass {
-    // Deactivated devices use a ColorFilter singleton (aBj in 6.1.5, auT in 6.0, QJ in 5.3.13, Ob in 4.3.10)
+    // Deactivated devices (!isActive) use a ColorFilter singleton (aBj in 6.1.5, auT in 6.0, QJ in 5.3.13, Ob in 4.3.10)
     // that desaturates to luminance and blends 0.5 toward hardcoded #323232 (50/255 = 0.19607843137254902).
+    // Bypassed/disabled devices (!isEnabled) use a sibling ColorFilter singleton (aAk in 6.1.5, aua in 6.0, PJ in 5.3.13, Nc in 4.3.10)
+    // that desaturates to luminance and blends 0.6 toward hardcoded #505050 (80/255 = 0.3137254901960784).
     // Deactivated tracks, channels, and clips (5.3.13+) use:
     //   1) A static CompositeColorFilter (buD.wtf in 6.1.5, bnT.wiO in 6.0, aDR.lXt in 5.3.13) for clips/items.
     //   2) Widget.c_ (duK.c_ in 6.1.5, dmu.c_ in 6.0, cvG.c_ in 5.3.13) when `this instanceof buD` (track/channel headers).
     //      Other disabled UI controls (toolbar buttons, arm buttons, etc.) are NOT instances of buD and keep
     //      their stock va2() parent-background adaptation untouched.
-    // This patcher hooks all three to resolve "Deactivated Overlay" (#RRGGBBAA):
+    // This patcher hooks all of them to resolve "Deactivated Overlay" (#RRGGBBAA):
     // RGB sets the tint target color, and Alpha (00..FF) controls the blend strength (0.0..1.0).
     private static final String KEY_NAME = "Deactivated Overlay";
     private static final int DEFAULT_ARGB_SENTINEL = 0x80262626; // #26262680
     private static final String CACHE_FIELD_NAME = "bteDeactivatedOverlayCache";
 
     private String deviceSingletonMethod;
+    private ClassNode bypassedFilterClassNode;
+    private MethodNode bypassedFilterMethodNode;
 
     private String trackFilterHolderClass;
     private String trackFilterFieldName;
@@ -38,7 +42,7 @@ public class DeactivatedPatchClass extends PatchClass {
     public DeactivatedPatchClass(HashMap<String, ClassNode> classNodes) {
         super(classNodes, "DeactivatedClass");
 
-        findDeviceFilter(classNodes);
+        findDeviceFilters(classNodes);
         if (this.classNode == null || this.methodNode == null || this.deviceSingletonMethod == null) {
             System.out.println("NOTE: Deactivated device filter class not found.");
             return;
@@ -46,6 +50,11 @@ public class DeactivatedPatchClass extends PatchClass {
 
         JarNode.getModifiedNodes().put(this.classNode.name, this.classNode);
         System.out.println(" -> Found Deactivated device filter (" + this.classNode.name + "." + this.methodNode.name + ").");
+
+        if (this.bypassedFilterClassNode != null && this.bypassedFilterMethodNode != null) {
+            JarNode.getModifiedNodes().put(this.bypassedFilterClassNode.name, this.bypassedFilterClassNode);
+            System.out.println(" -> Found Bypassed device filter (" + this.bypassedFilterClassNode.name + "." + this.bypassedFilterMethodNode.name + ").");
+        }
 
         findTrackFilter(classNodes);
         if (this.compositeFilterClassNode != null && this.compositeTransformMethodNode != null) {
@@ -60,9 +69,10 @@ public class DeactivatedPatchClass extends PatchClass {
         }
     }
 
-    private void findDeviceFilter(HashMap<String, ClassNode> classNodes) {
+    private void findDeviceFilters(HashMap<String, ClassNode> classNodes) {
         for (ClassNode cn : classNodes.values()) {
-            MethodNode foundTransform = null;
+            MethodNode foundDeactivated = null;
+            MethodNode foundBypassed = null;
             String foundSingleton = null;
             String expectedSingletonDesc = "()L" + cn.name + ";";
 
@@ -77,6 +87,8 @@ public class DeactivatedPatchClass extends PatchClass {
                     boolean hasB = false;
                     boolean has05 = false;
                     boolean has50 = false;
+                    boolean has06 = false;
+                    boolean has80 = false;
                     for (AbstractInsnNode insn : mn.instructions) {
                         if (insn instanceof LdcInsnNode && ((LdcInsnNode) insn).cst instanceof Double) {
                             double val = (Double) ((LdcInsnNode) insn).cst;
@@ -85,19 +97,25 @@ public class DeactivatedPatchClass extends PatchClass {
                             else if (val == 0.10999999940395355d) hasB = true;
                             else if (val == 0.5d) has05 = true;
                             else if (val == 0.19607843137254902d) has50 = true;
+                            else if (val == 0.6d) has06 = true;
+                            else if (val == 0.3137254901960784d) has80 = true;
                         }
                     }
                     if (hasR && hasG && hasB && has05 && has50) {
-                        foundTransform = mn;
+                        foundDeactivated = mn;
+                    } else if (hasR && hasG && hasB && has06 && has80) {
+                        foundBypassed = mn;
                     }
                 }
             }
 
-            if (foundTransform != null && foundSingleton != null) {
+            if (foundDeactivated != null && foundSingleton != null && this.classNode == null) {
                 this.classNode = cn;
-                this.methodNode = foundTransform;
+                this.methodNode = foundDeactivated;
                 this.deviceSingletonMethod = foundSingleton;
-                return;
+            } else if (foundBypassed != null && this.bypassedFilterClassNode == null) {
+                this.bypassedFilterClassNode = cn;
+                this.bypassedFilterMethodNode = foundBypassed;
             }
         }
     }
@@ -229,7 +247,7 @@ public class DeactivatedPatchClass extends PatchClass {
 
     @Override
     protected void findMethodNode() {
-        // Handled in findDeviceFilter / findTrackFilter / findWidgetDisabledPaint
+        // Handled in findDeviceFilters / findTrackFilter / findWidgetDisabledPaint
     }
 
     private void ensureCacheField(ClassNode owner, String colorClassName) {
@@ -302,7 +320,11 @@ public class DeactivatedPatchClass extends PatchClass {
         }
 
         ensureCacheField(this.classNode, colorClassName);
-        patchDeviceFilter(colorClassName, getColorMethod, getColorDesc, colorIntField, redField, greenField, blueField, alphaFloatField);
+        patchLuminanceBlendFilter(this.methodNode, colorClassName, getColorMethod, getColorDesc, colorIntField, redField, greenField, blueField, alphaFloatField);
+
+        if (this.bypassedFilterClassNode != null && this.bypassedFilterMethodNode != null) {
+            patchLuminanceBlendFilter(this.bypassedFilterMethodNode, colorClassName, getColorMethod, getColorDesc, colorIntField, redField, greenField, blueField, alphaFloatField);
+        }
 
         if (this.compositeFilterClassNode != null && this.compositeTransformMethodNode != null) {
             patchCompositeTrackFilter(colorClassName, getColorMethod, getColorDesc, colorIntField);
@@ -316,9 +338,9 @@ public class DeactivatedPatchClass extends PatchClass {
         System.out.println(" -> Successfully patched Deactivated Track & Device filter hooks (Deactivated Overlay).");
     }
 
-    private void patchDeviceFilter(String colorClassName, String getColorMethod, String getColorDesc,
-                                   String colorIntField, String redField, String greenField, String blueField, String alphaFloatField) {
-        int baseLocal = Math.max(this.methodNode.maxLocals, 9);
+    private void patchLuminanceBlendFilter(MethodNode targetMethod, String colorClassName, String getColorMethod, String getColorDesc,
+                                           String colorIntField, String redField, String greenField, String blueField, String alphaFloatField) {
+        int baseLocal = Math.max(targetMethod.maxLocals, 9);
         int colorSlot = baseLocal;
         int lumSlot = baseLocal + 1;
         int alphaSlot = baseLocal + 3;
@@ -326,7 +348,7 @@ public class DeactivatedPatchClass extends PatchClass {
         int targetRSlot = baseLocal + 7;
         int targetGSlot = baseLocal + 9;
         int targetBSlot = baseLocal + 11;
-        this.methodNode.maxLocals = baseLocal + 13;
+        targetMethod.maxLocals = baseLocal + 13;
 
         InsnList hook = new InsnList();
         LabelNode skipPopLabel = new LabelNode();
@@ -446,8 +468,8 @@ public class DeactivatedPatchClass extends PatchClass {
         hook.add(skipPopLabel);
         hook.add(new InsnNode(Opcodes.POP));
 
-        this.methodNode.instructions.insert(hook);
-        this.methodNode.maxStack = Math.max(this.methodNode.maxStack, 8);
+        targetMethod.instructions.insert(hook);
+        targetMethod.maxStack = Math.max(targetMethod.maxStack, 8);
     }
 
     private void patchCompositeTrackFilter(String colorClassName, String getColorMethod, String getColorDesc, String colorIntField) {
