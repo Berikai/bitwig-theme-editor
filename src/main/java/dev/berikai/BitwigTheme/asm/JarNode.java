@@ -106,7 +106,7 @@ public class JarNode {
                         }
                     }
 
-                    ClassWriter writer = new CustomClassWriter(flag);
+                    ClassWriter writer = new CustomClassWriter(flag, nodes);
                     classNode.accept(writer);
                     byte[] classBytes = writer.toByteArray();
 
