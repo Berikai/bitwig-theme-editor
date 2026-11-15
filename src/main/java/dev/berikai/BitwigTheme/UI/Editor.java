@@ -500,6 +500,8 @@ public class Editor extends JFrame {
         boolean hasEQ = false;
         boolean hasSamplerPiano = false;
         boolean hasSamplerPressed = false;
+        boolean hasDynamicsBg = false;
+        boolean hasTunerBg = false;
         boolean needsSanitization = false;
         Set<String> seenKeys = new HashSet<>();
 
@@ -555,6 +557,12 @@ public class Editor extends JFrame {
                         if (key.contains("(Pressed)")) {
                             hasSamplerPressed = true;
                         }
+                    }
+                    if (key.equals("Dynamics Background")) {
+                        hasDynamicsBg = true;
+                    }
+                    if (key.equals("Tuner Background")) {
+                        hasTunerBg = true;
                     }
                     String value = parts[1].split("//")[0].trim();
                     if (key.equals("Piano Roll White Key") && (value.equalsIgnoreCase("#ffffff1a") || value.length() == 9)) {
@@ -700,6 +708,34 @@ public class Editor extends JFrame {
                     bw.newLine();
                     if (seenKeys.add(sp[0])) {
                         ColorPanel item = new ColorPanel(sp[0], sp[1]);
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // If default.bte was created without Dynamics / Tuner visualizer background colors, append them now
+        if (!hasDynamicsBg || !hasTunerBg) {
+            try (java.io.FileWriter fw = new java.io.FileWriter(themeFile, true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.newLine();
+                bw.write("// Visualizer Background Colors");
+                bw.newLine();
+                if (!hasDynamicsBg) {
+                    bw.write("Dynamics Background: #333333");
+                    bw.newLine();
+                    if (seenKeys.add("Dynamics Background")) {
+                        ColorPanel item = new ColorPanel("Dynamics Background", "#333333");
+                        item.setComment("");
+                        listModel.addElement(item);
+                    }
+                }
+                if (!hasTunerBg) {
+                    bw.write("Tuner Background: #1a1a1a");
+                    bw.newLine();
+                    if (seenKeys.add("Tuner Background")) {
+                        ColorPanel item = new ColorPanel("Tuner Background", "#1a1a1a");
                         item.setComment("");
                         listModel.addElement(item);
                     }

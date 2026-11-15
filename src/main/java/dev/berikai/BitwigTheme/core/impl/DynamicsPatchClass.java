@@ -15,7 +15,7 @@ public class DynamicsPatchClass extends PatchClass {
     // Right: Gain-reduction / history waveform visualizer ("Frozen" cyan text / scrolling gain graph)
     // The right visualizer draws its background rectangle with a hardcoded dark grey color (0.2f, 0.2f, 0.2f)
     // We locate the widget classes containing the string "Frozen" (atf & aSI in 6.1.5, aMm & anx in 6.0, Hy & aid in 5.3.13, Fq & amZ in 4.3.10)
-    // and override the background color with "Display Background" so both areas match!
+    // and override the background color with a dedicated "Dynamics Background" key!
 
     private final List<ClassNode> targetClassNodes = new ArrayList<>();
 
@@ -100,11 +100,11 @@ public class DynamicsPatchClass extends PatchClass {
 
                             if (followedBySetColor) {
                                 // Stack has: [..., colorInstance]
-                                // Override color with "Display Background" to match the left transfer curve display
+                                // Override color with dedicated "Dynamics Background" key
                                 InsnList hook = new InsnList();
 
                                 hook.add(new InsnNode(Opcodes.DUP));
-                                hook.add(new LdcInsnNode("Display Background"));
+                                hook.add(new LdcInsnNode("Dynamics Background"));
                                 hook.add(new FieldInsnNode(Opcodes.PUTFIELD, colorClassName, "colorName", "Ljava/lang/String;"));
                                 hook.add(new InsnNode(Opcodes.DUP));
                                 hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, colorClassName, getColorMethod, getColorDesc, false));
