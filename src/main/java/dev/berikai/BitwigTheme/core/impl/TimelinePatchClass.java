@@ -368,9 +368,10 @@ public class TimelinePatchClass extends PatchClass {
             }
         }
 
-        // 3. Hook pTZ.jPB(duK) so Dark / Light Timeline Background override Grey 2/3/4 when customized
+        // 3. Hook pTZ.jPB(duK) so Dark / Light Timeline Background override Grey 2/3/4 when customized to a non-default value
         String colorClassName = PatchClass.mappings.get("ColorClass");
-        if (timelineBgHelperMethod != null && colorClassName != null) {
+        String colorIntField = PatchClass.mappings.get("ColorClass.colorIntegerValue");
+        if (timelineBgHelperMethod != null && colorClassName != null && colorIntField != null) {
             InsnList bgHook = new InsnList();
             LabelNode checkLight = new LabelNode();
             LabelNode fallthrough = new LabelNode();
@@ -381,6 +382,10 @@ public class TimelinePatchClass extends PatchClass {
             bgHook.add(new InsnNode(Opcodes.DUP));
             bgHook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
             bgHook.add(new JumpInsnNode(Opcodes.IFEQ, checkLight));
+            bgHook.add(new InsnNode(Opcodes.DUP));
+            bgHook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, colorIntField, "I"));
+            bgHook.add(new LdcInsnNode(0xff262626));
+            bgHook.add(new JumpInsnNode(Opcodes.IF_ICMPEQ, checkLight));
             bgHook.add(new InsnNode(Opcodes.ARETURN));
 
             bgHook.add(checkLight);
@@ -391,6 +396,10 @@ public class TimelinePatchClass extends PatchClass {
             bgHook.add(new InsnNode(Opcodes.DUP));
             bgHook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
             bgHook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough));
+            bgHook.add(new InsnNode(Opcodes.DUP));
+            bgHook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, colorIntField, "I"));
+            bgHook.add(new LdcInsnNode(0xff262626));
+            bgHook.add(new JumpInsnNode(Opcodes.IF_ICMPEQ, fallthrough));
             bgHook.add(new InsnNode(Opcodes.ARETURN));
 
             bgHook.add(fallthrough);
@@ -399,8 +408,8 @@ public class TimelinePatchClass extends PatchClass {
             timelineBgHelperMethod.instructions.insert(bgHook);
         }
 
-        // 4. Hook bqn grid color methods so Timeline Primary/Secondary Grid override bqq calculation when customized
-        if (timelineGrid5ArgMethod != null && colorClassName != null) {
+        // 4. Hook bqn grid color methods so Timeline Primary/Secondary Grid override bqq calculation when non-default
+        if (timelineGrid5ArgMethod != null && colorClassName != null && colorIntField != null) {
             InsnList g5Hook = new InsnList();
             LabelNode checkSecondary = new LabelNode();
             LabelNode fallthrough5 = new LabelNode();
@@ -415,6 +424,10 @@ public class TimelinePatchClass extends PatchClass {
             g5Hook.add(new InsnNode(Opcodes.DUP));
             g5Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
             g5Hook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough5));
+            g5Hook.add(new InsnNode(Opcodes.DUP));
+            g5Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, colorIntField, "I"));
+            g5Hook.add(new LdcInsnNode(0xff000000));
+            g5Hook.add(new JumpInsnNode(Opcodes.IF_ICMPEQ, fallthrough5));
             g5Hook.add(new InsnNode(Opcodes.ARETURN));
 
             // Secondary grid (iload_3 != 0)
@@ -426,6 +439,10 @@ public class TimelinePatchClass extends PatchClass {
             g5Hook.add(new InsnNode(Opcodes.DUP));
             g5Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
             g5Hook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough5));
+            g5Hook.add(new InsnNode(Opcodes.DUP));
+            g5Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, colorIntField, "I"));
+            g5Hook.add(new LdcInsnNode(0x50000000));
+            g5Hook.add(new JumpInsnNode(Opcodes.IF_ICMPEQ, fallthrough5));
             g5Hook.add(new InsnNode(Opcodes.ARETURN));
 
             g5Hook.add(fallthrough5);
@@ -433,7 +450,7 @@ public class TimelinePatchClass extends PatchClass {
 
             timelineGrid5ArgMethod.instructions.insert(g5Hook);
 
-            // 4-arg sub-grid method: use Timeline Secondary Grid (scaled by 0.5f) if customized
+            // 4-arg sub-grid method: use Timeline Secondary Grid (scaled by 0.5f) if non-default
             if (timelineGrid4ArgMethod != null && qflAlphaMethod != null) {
                 InsnList g4Hook = new InsnList();
                 LabelNode fallthrough4 = new LabelNode();
@@ -445,6 +462,10 @@ public class TimelinePatchClass extends PatchClass {
                 g4Hook.add(new InsnNode(Opcodes.DUP));
                 g4Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, "isCustomized", "Z"));
                 g4Hook.add(new JumpInsnNode(Opcodes.IFEQ, fallthrough4));
+                g4Hook.add(new InsnNode(Opcodes.DUP));
+                g4Hook.add(new FieldInsnNode(Opcodes.GETFIELD, colorClassName, colorIntField, "I"));
+                g4Hook.add(new LdcInsnNode(0x50000000));
+                g4Hook.add(new JumpInsnNode(Opcodes.IF_ICMPEQ, fallthrough4));
                 g4Hook.add(new LdcInsnNode(0.5f));
                 g4Hook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, qflAlphaOwner, qflAlphaMethod, qflAlphaDesc, false));
                 g4Hook.add(new InsnNode(Opcodes.ARETURN));
