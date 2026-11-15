@@ -792,6 +792,7 @@ public class Editor extends JFrame {
 
         DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
         boolean themeNeedsSanitization = false;
+        java.util.Set<String> explicitKeys = new java.util.HashSet<>();
 
         try (Scanner scanner = new Scanner(themeFile)) {
             while (scanner.hasNextLine()) {
@@ -812,26 +813,16 @@ public class Editor extends JFrame {
                         rawValue = "#b3b3b3";
                         themeNeedsSanitization = true;
                     }
-                    for (Object _panel : listModel.toArray()) {
-                        if (!(_panel instanceof ColorPanel)) continue;
-                        ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = normalizeColorKey(rawKey);
-                        if (panel.getKey().equals(colorKey) || panel.getKey().equals(rawKey)) {
-                            try {
-                                panel.setValue(rawValue);
-                                try {
-                                    panel.setComment(parts[1].split("//")[1].trim());
-                                } catch (Exception e) {
-                                    panel.setComment("");
-                                }
-                                updateModifiedList(panel);
-                            } catch (Exception e) {
-                                System.out.println("-> Skipping invalid line in theme file: " + line);
-                                continue;
-                            }
-                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(rawValue));
-                            panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
-                        }
+                    String comment = "";
+                    try {
+                        comment = parts[1].split("//")[1].trim();
+                    } catch (Exception ignored) {}
+
+                    String colorKey = normalizeColorKey(rawKey);
+                    explicitKeys.add(rawKey);
+                    explicitKeys.add(colorKey);
+                    if (!applyThemeColorEntry(listModel, rawKey, colorKey, rawValue, comment, explicitKeys)) {
+                        System.out.println("-> Skipping invalid line in theme file: " + line);
                     }
                     list1.repaint();
                 }
@@ -863,6 +854,7 @@ public class Editor extends JFrame {
         }
 
         DefaultListModel<ColorPanel> listModel = (DefaultListModel<ColorPanel>) list1.getModel();
+        java.util.Set<String> explicitKeys = new java.util.HashSet<>();
 
         try (Scanner scanner = new Scanner(themeFile)) {
             while (scanner.hasNextLine()) {
@@ -884,21 +876,11 @@ public class Editor extends JFrame {
                     if (rawKey.equals("Piano Roll White Key") && (rawValue.equalsIgnoreCase("#ffffff1a") || rawValue.length() == 9)) {
                         rawValue = "#b3b3b3";
                     }
-                    for (Object _panel : listModel.toArray()) {
-                        if (!(_panel instanceof ColorPanel)) continue;
-                        ColorPanel panel = (ColorPanel) _panel;
-                        String colorKey = normalizeColorKey(rawKey);
-                        if (panel.getKey().equals(colorKey) || panel.getKey().equals(rawKey)) {
-                            try {
-                                panel.setValue(rawValue);
-                                updateModifiedList(panel);
-                            } catch (Exception e) {
-                                System.out.println("-> Skipping invalid line in theme file: " + line);
-                                continue;
-                            }
-                            panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(rawValue));
-                            panel.setToolTipText(panel.getKey() + ": " + panel.getValue());
-                        }
+                    String colorKey = normalizeColorKey(rawKey);
+                    explicitKeys.add(rawKey);
+                    explicitKeys.add(colorKey);
+                    if (!applyThemeColorEntry(listModel, rawKey, colorKey, rawValue, null, explicitKeys)) {
+                        System.out.println("-> Skipping invalid line in theme file: " + line);
                     }
                     list1.repaint();
                 }
@@ -911,6 +893,37 @@ public class Editor extends JFrame {
         System.out.println("-> Loaded theme from (JSON): " + themeFilePath);
     }
     
+    private boolean applyThemeColorEntry(DefaultListModel<ColorPanel> listModel, String rawKey, String colorKey, String rawValue, String comment, java.util.Set<String> explicitKeys) {
+        String compatGreyKey = null;
+        if (isBitwig6OrNewer && compatibilityForOldThemesCheckBox.isSelected()) {
+            if ("Dark Timeline Background".equals(rawKey) && !explicitKeys.contains("Grey 1")) {
+                compatGreyKey = "Grey 1";
+            } else if ("Light Timeline Background".equals(rawKey) && !explicitKeys.contains("Grey 2")) {
+                compatGreyKey = "Grey 2";
+            }
+        }
+
+        for (Object _panel : listModel.toArray()) {
+            if (!(_panel instanceof ColorPanel)) continue;
+            ColorPanel panel = (ColorPanel) _panel;
+            String panelKey = panel.getKey();
+            if (panelKey.equals(colorKey) || panelKey.equals(rawKey) || panelKey.equals(compatGreyKey)) {
+                try {
+                    panel.setValue(rawValue);
+                    if (comment != null) {
+                        panel.setComment(comment);
+                    }
+                    updateModifiedList(panel);
+                } catch (Exception e) {
+                    return false;
+                }
+                panel.getColorDisplayPanel().setBackground(ColorPanel.decodeRGBA(rawValue));
+                panel.setToolTipText(panelKey + ": " + panel.getValue());
+            }
+        }
+        return true;
+    }
+
     public void loadTheme(String path) {
         loadDefaultThemeColors();
         if (path.endsWith(".json")) {
