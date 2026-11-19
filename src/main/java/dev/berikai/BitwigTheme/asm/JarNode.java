@@ -45,8 +45,13 @@ public class JarNode {
         inputPath = path;
         inputFile = new ZipFile(path);
 
-        // Read all entries in jar
-        readEntries();
+        // Read all entries in jar into memory, then close the file handle so
+        // Windows does not hold a sharing lock when export() replaces the jar.
+        try {
+            readEntries();
+        } finally {
+            inputFile.close();
+        }
     }
 
     // Utility method to read all bytes from an InputStream
@@ -67,7 +72,10 @@ public class JarNode {
         Enumeration<? extends ZipEntry> entries = inputFile.entries();
         while (entries.hasMoreElements()) {
             ZipEntry entry = entries.nextElement();
-            byte[] stream = readAllBytesFromInputStream(inputFile.getInputStream(entry));
+            byte[] stream;
+            try (InputStream entryStream = inputFile.getInputStream(entry)) {
+                stream = readAllBytesFromInputStream(entryStream);
+            }
 
             // Separate class files and other files, parse class files with ASM
             if (entry.getName().endsWith(".class")) {
